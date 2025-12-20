@@ -1,12 +1,185 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>スケジュール & ToDo（日/週/月）+ 達成率</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#fff; --text:#111827; --muted:#6b7280; --line:#e5e7eb;
+      --accent:#2563eb; --ok:#10b981; --danger:#ef4444; --shadow:0 10px 30px rgba(0,0,0,.08);
+      --r:16px; --chip:#eef2ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1150px;margin:24px auto;padding:0 14px}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    h1{font-size:18px;margin:0}
+    .tabs{display:flex;gap:8px;background:var(--chip);padding:6px;border-radius:999px}
+    .tab{border:0;background:transparent;padding:8px 12px;border-radius:999px;cursor:pointer;color:var(--muted);font-weight:800}
+    .tab.active{background:var(--card);color:var(--text);box-shadow:0 6px 16px rgba(0,0,0,.08)}
+    .grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
+    @media(min-width:980px){.grid{grid-template-columns:1.2fr .8fr}}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+    .card h2{font-size:14px;margin:0;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--muted)}
+    .card .body{padding:12px 14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+    input, button{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff}
+    input[type="time"], input[type="date"]{padding:9px 10px}
+    button{cursor:pointer;font-weight:900}
+    .btn{background:var(--accent);color:#fff;border-color:transparent}
+    .btn.ghost{background:#fff;color:var(--text)}
+    .btn.danger{background:var(--danger);color:#fff;border-color:transparent}
+    .mini{font-size:12px;color:var(--muted)}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);font-size:12px;background:#fafafa}
+    .spacer{flex:1}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;vertical-align:top}
+    th{color:var(--muted);font-weight:900;background:#fafafa}
+    tr:last-child td{border-bottom:0}
+    .nowrap{white-space:nowrap}
+    .done{text-decoration:line-through;color:var(--muted)}
+    .ok{color:#047857}
+    .warn{color:#b45309}
+    .err{color:#b91c1c}
+    .fatal{margin:14px 0;padding:12px 14px;border:1px solid #fecaca;background:#fff1f2;border-radius:12px;display:none}
+    .fatal b{display:block;margin-bottom:6px}
+    code{background:#f3f4f6;border:1px solid #e5e7eb;padding:2px 6px;border-radius:8px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>スケジュール & ToDo（表） + 達成率</h1>
+    <div class="tabs" role="tablist" aria-label="view">
+      <button class="tab active" data-view="day">日</button>
+      <button class="tab" data-view="week">週</button>
+      <button class="tab" data-view="month">月</button>
+    </div>
+  </header>
+
+  <div id="fatal" class="fatal">
+    <b>ページが白紙になる原因のエラーが出ました</b>
+    <div class="mini" id="fatalMsg"></div>
+    <div class="mini" style="margin-top:8px">※ DevTools の Console に同じ内容が出ます</div>
+  </div>
+
+  <p class="mini" style="margin:10px 4px 0">
+    保存先：Supabase（ログイン無し） / 表示：日・週・月で切り替え
+  </p>
+
+  <div class="grid">
+    <section class="card">
+      <h2 id="scheduleTitle">スケジュール（日）</h2>
+      <div class="body">
+        <div class="row">
+          <div>
+            <div class="mini">日付</div>
+            <input id="schDate" type="date">
+          </div>
+          <div>
+            <div class="mini">時間</div>
+            <input id="schTime" type="time">
+          </div>
+          <div style="flex:1;min-width:240px">
+            <div class="mini">内容</div>
+            <input id="schText" placeholder="例：英単語 30分 / 面接練習 / K.ARTS" />
+          </div>
+          <button class="btn" id="addSchedule">追加</button>
+        </div>
+
+        <div class="row" style="margin:12px 0 0; align-items:center">
+          <span class="pill">表示範囲：<b id="rangeLabel">今日</b></span>
+          <span class="spacer"></span>
+          <button class="btn ghost" id="refreshAll">更新</button>
+        </div>
+
+        <div style="margin-top:10px;overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th class="nowrap">日付</th>
+                <th class="nowrap">時間</th>
+                <th>内容</th>
+                <th class="nowrap">操作</th>
+              </tr>
+            </thead>
+            <tbody id="scheduleBody"></tbody>
+          </table>
+        </div>
+
+        <p class="mini" id="statusLine"></p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 id="todoTitle">ToDo（日）</h2>
+      <div class="body">
+        <div class="row">
+          <div style="flex:1;min-width:240px">
+            <div class="mini">ToDo</div>
+            <input id="todoText" placeholder="例：数学 10問 / GitHubにpush" />
+          </div>
+          <div>
+            <div class="mini">予定日</div>
+            <input id="todoDate" type="date">
+          </div>
+          <button class="btn" id="addTodo">追加</button>
+        </div>
+
+        <div class="row" style="margin:12px 0 0; align-items:center">
+          <span class="pill">この範囲のToDo</span>
+          <span class="spacer"></span>
+          <button class="btn ghost" id="markAllDone">今日(範囲)を全部完了</button>
+        </div>
+
+        <div style="margin-top:10px;overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th class="nowrap">完了</th>
+                <th>内容</th>
+                <th class="nowrap">予定日</th>
+                <th class="nowrap">操作</th>
+              </tr>
+            </thead>
+            <tbody id="todoBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <h2>達成率（日/週/月）</h2>
+          <div class="body">
+            <canvas id="rateChart" height="120"></canvas>
+            <p class="mini">範囲内ToDoの「完了数 / 総数」から達成率(%)を計算</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ライブラリ -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
 <script>
-  // ===== Supabase =====
+  // 画面に致命的エラーを出す（白紙対策）
+  function showFatal(err){
+    console.error(err);
+    const box = document.getElementById("fatal");
+    const msg = document.getElementById("fatalMsg");
+    box.style.display = "block";
+    msg.innerHTML =
+      `原因：<code>${String(err?.message || err)}</code><br>` +
+      `対策：DevTools → Console の赤い行を見て、そのまま貼って。`;
+  }
+  window.addEventListener("error", (e)=>showFatal(e.error || e.message));
+  window.addEventListener("unhandledrejection", (e)=>showFatal(e.reason || e));
+
+  // ===== Supabase（2重読み込みでも落ちない）=====
   const supabaseUrl = "https://qzobchxakdvubfkdwxxf.supabase.co";
   const supabaseKey = "sb_publishable_L39SGNHMqWijT5_cX3BwDA_J5JWnrPA";
-
-  // ★二重読み込みでも落ちないようにする（重要）
   window.__sb = window.__sb || window.supabase.createClient(supabaseUrl, supabaseKey);
   const supabase = window.__sb;
 
@@ -166,6 +339,7 @@
     if (error) throw error;
   }
 
+  // ===== render =====
   async function renderSchedules() {
     const { a, b } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
@@ -320,3 +494,5 @@
 
   renderAll();
 </script>
+</body>
+</html>
