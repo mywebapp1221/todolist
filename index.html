@@ -24,7 +24,9 @@
     .card h2{font-size:14px;margin:0;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--muted)}
     .card .body{padding:12px 14px}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
-    input, button{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff}
+    input, button{
+      font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;
+    }
     input[type="time"], input[type="date"]{padding:9px 10px}
     button{cursor:pointer;font-weight:900}
     .btn{background:var(--accent);color:#fff;border-color:transparent}
@@ -42,7 +44,9 @@
     .ok{color:#047857}
     .warn{color:#b45309}
     .err{color:#b91c1c}
-    .fatal{margin:14px 0;padding:12px 14px;border:1px solid #fecaca;background:#fff1f2;border-radius:12px;display:none}
+    .fatal{
+      margin:14px 0;padding:12px 14px;border:1px solid #fecaca;background:#fff1f2;border-radius:12px;display:none
+    }
     .fatal b{display:block;margin-bottom:6px}
     code{background:#f3f4f6;border:1px solid #e5e7eb;padding:2px 6px;border-radius:8px}
   </style>
@@ -59,9 +63,9 @@
   </header>
 
   <div id="fatal" class="fatal">
-    <b>ページが白紙になる原因のエラーが出ました</b>
+    <b>エラーで止まっています</b>
     <div class="mini" id="fatalMsg"></div>
-    <div class="mini" style="margin-top:8px">※ DevTools の Console に同じ内容が出ます</div>
+    <div class="mini" style="margin-top:8px">※ DevTools → Console の赤い行も貼ってOK</div>
   </div>
 
   <p class="mini" style="margin:10px 4px 0">
@@ -69,6 +73,7 @@
   </p>
 
   <div class="grid">
+    <!-- Schedule -->
     <section class="card">
       <h2 id="scheduleTitle">スケジュール（日）</h2>
       <div class="body">
@@ -112,6 +117,7 @@
       </div>
     </section>
 
+    <!-- Todo + Chart -->
     <section class="card">
       <h2 id="todoTitle">ToDo（日）</h2>
       <div class="body">
@@ -159,32 +165,31 @@
   </div>
 </div>
 
-<!-- ライブラリ -->
+<!-- libs -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
 <script>
-  // 画面に致命的エラーを出す（白紙対策）
+  // ===== 画面上に致命的エラー表示（白紙対策） =====
   function showFatal(err){
     console.error(err);
     const box = document.getElementById("fatal");
     const msg = document.getElementById("fatalMsg");
     box.style.display = "block";
-    msg.innerHTML =
-      `原因：<code>${String(err?.message || err)}</code><br>` +
-      `対策：DevTools → Console の赤い行を見て、そのまま貼って。`;
+    msg.innerHTML = `原因：<code>${String(err?.message || err)}</code>`;
   }
   window.addEventListener("error", (e)=>showFatal(e.error || e.message));
   window.addEventListener("unhandledrejection", (e)=>showFatal(e.reason || e));
 
-  // ===== Supabase（2重読み込みでも落ちない）=====
-  const supabaseUrl = "https://qzobchxakdvubfkdwxxf.supabase.co";
-  const supabaseKey = "sb_publishable_L39SGNHMqWijT5_cX3BwDA_J5JWnrPA";
-  window.__sb = window.__sb || window.supabase.createClient(supabaseUrl, supabaseKey);
-  const supabase = window.__sb;
+  // ===== Supabase（新プロジェクト）=====
+  const SUPABASE_URL = "https://vxtrnewebvqdgnknktdt.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_z7Td1_pXRSB0GFbsak_vuw_1IIiJM59";
+
+  // ✅ sb という名前で固定（supabase という変数名は衝突しやすいので使わない）
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   // ===== state =====
-  let view = "day";
+  let view = "day"; // day | week | month
   let rateChart = null;
 
   // ===== dom =====
@@ -213,9 +218,9 @@
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const todayStr = () => ymd(new Date());
 
-  function startOfWeek(date) {
+  function startOfWeek(date) { // Monday start
     const d = new Date(date);
-    const day = (d.getDay() + 6) % 7;
+    const day = (d.getDay() + 6) % 7; // Mon=0..Sun=6
     d.setDate(d.getDate() - day);
     d.setHours(0,0,0,0);
     return d;
@@ -279,17 +284,17 @@
     statusLine.textContent = msg || "";
   }
 
-  // ===== Supabase ops =====
+  // ===== Supabase queries =====
   async function insertSchedule(date, time, text) {
-    const { error } = await supabase.from("schedules").insert({ date, time: time || null, text });
+    const { error } = await sb.from("schedules").insert({ date, time: time || null, text });
     if (error) throw error;
   }
   async function deleteSchedule(id) {
-    const { error } = await supabase.from("schedules").delete().eq("id", id);
+    const { error } = await sb.from("schedules").delete().eq("id", id);
     if (error) throw error;
   }
   async function fetchSchedules(fromYmd, toYmd) {
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from("schedules")
       .select("id, date, time, text")
       .gte("date", fromYmd)
@@ -301,26 +306,27 @@
   }
 
   async function insertTodo(text, planned_date) {
-    const { error } = await supabase.from("todos").insert({
+    const { error } = await sb.from("todos").insert({
       text, planned_date, done:false, completed_at:null
     });
     if (error) throw error;
   }
   async function deleteTodo(id) {
-    const { error } = await supabase.from("todos").delete().eq("id", id);
+    const { error } = await sb.from("todos").delete().eq("id", id);
     if (error) throw error;
   }
   async function toggleTodo(id, done) {
     const payload = done
       ? { done: true, completed_at: new Date().toISOString() }
       : { done: false, completed_at: null };
-    const { error } = await supabase.from("todos").update(payload).eq("id", id);
+
+    const { error } = await sb.from("todos").update(payload).eq("id", id);
     if (error) throw error;
   }
   async function fetchTodos(fromYmd, toYmd) {
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from("todos")
-      .select("id, text, planned_date, done")
+      .select("id, text, planned_date, done, created_at")
       .gte("planned_date", fromYmd)
       .lte("planned_date", toYmd)
       .order("done", { ascending: true })
@@ -330,7 +336,7 @@
     return data ?? [];
   }
   async function markAllDoneInRange(fromYmd, toYmd) {
-    const { error } = await supabase
+    const { error } = await sb
       .from("todos")
       .update({ done: true, completed_at: new Date().toISOString() })
       .eq("done", false)
@@ -350,9 +356,13 @@
         <td class="nowrap">${escapeHtml(x.date)}</td>
         <td class="nowrap">${x.time ? escapeHtml(String(x.time).slice(0,5)) : ""}</td>
         <td>${escapeHtml(x.text)}</td>
-        <td class="nowrap"><button class="btn danger" data-del-sch="${x.id}">削除</button></td>
+        <td class="nowrap">
+          <button class="btn danger" data-del-sch="${x.id}">削除</button>
+        </td>
       </tr>
-    `).join("") || `<tr><td colspan="4" class="mini">（この範囲のスケジュールはまだありません）</td></tr>`;
+    `).join("") || `
+      <tr><td colspan="4" class="mini">（この範囲のスケジュールはまだありません）</td></tr>
+    `;
 
     scheduleBody.querySelectorAll("[data-del-sch]").forEach(btn=>{
       btn.addEventListener("click", async () => {
@@ -374,12 +384,18 @@
 
     todoBody.innerHTML = rows.map(t => `
       <tr>
-        <td class="nowrap"><input type="checkbox" data-todo-check="${t.id}" ${t.done ? "checked":""}></td>
+        <td class="nowrap">
+          <input type="checkbox" data-todo-check="${t.id}" ${t.done ? "checked":""}>
+        </td>
         <td class="${t.done ? "done":""}">${escapeHtml(t.text)}</td>
         <td class="nowrap">${escapeHtml(t.planned_date)}</td>
-        <td class="nowrap"><button class="btn danger" data-del-todo="${t.id}">削除</button></td>
+        <td class="nowrap">
+          <button class="btn danger" data-del-todo="${t.id}">削除</button>
+        </td>
       </tr>
-    `).join("") || `<tr><td colspan="4" class="mini">（この範囲のToDoはまだありません）</td></tr>`;
+    `).join("") || `
+      <tr><td colspan="4" class="mini">（この範囲のToDoはまだありません）</td></tr>
+    `;
 
     todoBody.querySelectorAll("[data-todo-check]").forEach(ch=>{
       ch.addEventListener("change", async () => {
@@ -409,6 +425,7 @@
   async function renderRateChartForView() {
     const { a, b, label } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
+
     const todos = await fetchTodos(fromYmd, toYmd);
     const total = todos.length;
     const done = todos.filter(t => t.done).length;
@@ -417,8 +434,13 @@
     if (rateChart) rateChart.destroy();
     rateChart = new Chart(document.getElementById("rateChart"), {
       type: "bar",
-      data: { labels: [label], datasets: [{ label: "達成率(%)", data: [rate] }] },
-      options: { scales: { y: { beginAtZero: true, max: 100 } } }
+      data: {
+        labels: [label],
+        datasets: [{ label: "達成率(%)", data: [rate] }]
+      },
+      options: {
+        scales: { y: { beginAtZero: true, max: 100 } }
+      }
     });
   }
 
@@ -436,7 +458,7 @@
     }
   }
 
-  // init
+  // ===== init =====
   schDate.value = todayStr();
   todoDate.value = todayStr();
 
@@ -453,6 +475,7 @@
     const time = schTime.value || "";
     const text = (schText.value || "").trim();
     if(!text) return alert("内容を入れてね");
+
     try{
       await insertSchedule(date, time, text);
       schText.value = "";
@@ -467,6 +490,7 @@
     const text = (todoText.value || "").trim();
     const planned = todoDate.value || todayStr();
     if(!text) return alert("ToDoを入れてね");
+
     try{
       await insertTodo(text, planned);
       todoText.value = "";
@@ -483,6 +507,7 @@
     const { a, b } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
     if(!confirm("この範囲のToDoを全部完了にする？")) return;
+
     try{
       await markAllDoneInRange(fromYmd, toYmd);
       await renderAll();
