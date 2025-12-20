@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>スケジュール & ToDo（日/週/月）+ 達成率</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#fff; --text:#111827; --muted:#6b7280; --line:#e5e7eb;
+      --accent:#2563eb; --ok:#10b981; --danger:#ef4444; --shadow:0 10px 30px rgba(0,0,0,.08);
+      --r:16px; --chip:#eef2ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1150px;margin:24px auto;padding:0 14px}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    h1{font-size:18px;margin:0}
+    .tabs{display:flex;gap:8px;background:var(--chip);padding:6px;border-radius:999px}
+    .tab{border:0;background:transparent;padding:8px 12px;border-radius:999px;cursor:pointer;color:var(--muted);font-weight:800}
+    .tab.active{background:var(--card);color:var(--text);box-shadow:0 6px 16px rgba(0,0,0,.08)}
+    .grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
+    @media(min-width:980px){.grid{grid-template-columns:1.2fr .8fr}}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+    .card h2{font-size:14px;margin:0;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--muted)}
+    .card .body{padding:12px 14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+    input, select, button{
+      font:inherit; border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:#fff;
+    }
+    input[type="time"], input[type="date"]{padding:9px 10px}
+    button{cursor:pointer;font-weight:900}
+    .btn{background:var(--accent);color:#fff;border-color:transparent}
+    .btn.ghost{background:#fff;color:var(--text)}
+    .btn.danger{background:var(--danger);color:#fff;border-color:transparent}
+    .mini{font-size:12px;color:var(--muted)}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);font-size:12px;background:#fafafa}
+    .spacer{flex:1}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;vertical-align:top}
+    th{color:var(--muted);font-weight:900;background:#fafafa}
+    tr:last-child td{border-bottom:0}
+    .nowrap{white-space:nowrap}
+    .done{text-decoration:line-through;color:var(--muted)}
+    .warn{color:#b45309}
+    .ok{color:#047857}
+    .err{color:#b91c1c}
+    .topNote{margin:10px 4px 0}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:#f3f4f6;border:1px solid #e5e7eb;padding:2px 6px;border-radius:8px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>スケジュール & ToDo（表） + 達成率</h1>
+    <div class="tabs" role="tablist" aria-label="view">
+      <button class="tab active" data-view="day">日</button>
+      <button class="tab" data-view="week">週</button>
+      <button class="tab" data-view="month">月</button>
+    </div>
+  </header>
+
+  <p class="mini topNote">
+    保存先：Supabase（スマホ/PC同期） / 表示：日・週・月で切り替え
+  </p>
+
+  <div class="grid">
+    <!-- Schedule -->
+    <section class="card">
+      <h2 id="scheduleTitle">スケジュール（日）</h2>
+      <div class="body">
+        <div class="row">
+          <div>
+            <div class="mini">日付</div>
+            <input id="schDate" type="date">
+          </div>
+          <div>
+            <div class="mini">時間</div>
+            <input id="schTime" type="time">
+          </div>
+          <div style="flex:1;min-width:240px">
+            <div class="mini">内容</div>
+            <input id="schText" placeholder="例：英単語 30分 / 面接練習 / K.ARTS 仕込み" />
+          </div>
+          <button class="btn" id="addSchedule">追加</button>
+        </div>
+
+        <div class="row" style="margin:12px 0 0; align-items:center">
+          <span class="pill">表示範囲：<b id="rangeLabel">今日</b></span>
+          <span class="spacer"></span>
+          <button class="btn ghost" id="refreshAll">更新</button>
+        </div>
+
+        <div style="margin-top:10px;overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th class="nowrap">日付</th>
+                <th class="nowrap">時間</th>
+                <th>内容</th>
+                <th class="nowrap">操作</th>
+              </tr>
+            </thead>
+            <tbody id="scheduleBody"></tbody>
+          </table>
+        </div>
+
+        <p class="mini" id="statusLine"></p>
+      </div>
+    </section>
+
+    <!-- Todo + Chart -->
+    <section class="card">
+      <h2 id="todoTitle">ToDo（日）</h2>
+      <div class="body">
+        <div class="row">
+          <div style="flex:1;min-width:240px">
+            <div class="mini">ToDo</div>
+            <input id="todoText" placeholder="例：数学 10問 / GitHubにpush / 缶ケース詰める" />
+          </div>
+          <div>
+            <div class="mini">予定日</div>
+            <input id="todoDate" type="date">
+          </div>
+          <button class="btn" id="addTodo">追加</button>
+        </div>
+
+        <div class="row" style="margin:12px 0 0; align-items:center">
+          <span class="pill">この範囲のToDo</span>
+          <span class="spacer"></span>
+          <button class="btn ghost" id="markAllDone">今日(範囲)を全部完了</button>
+        </div>
+
+        <div style="margin-top:10px;overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th class="nowrap">完了</th>
+                <th>内容</th>
+                <th class="nowrap">予定日</th>
+                <th class="nowrap">操作</th>
+              </tr>
+            </thead>
+            <tbody id="todoBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <h2>達成率（日/週/月）</h2>
+          <div class="body">
+            <canvas id="rateChart" height="120"></canvas>
+            <p class="mini">範囲内ToDoの「完了数 / 総数」から達成率(%)を計算</p>
+          </div>
+        </div>
+
+        <p class="mini warn">
+          🔁「未完了ToDoを翌日に自動生成」は <span class="kbd">DB側cron</span> でやるのが安全（あとでSQL渡す）
+        </p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- libs -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+
+<script>
+  // ===== Supabase (あなたの値) =====
+  const supabaseUrl = "https://qzobchxakdvubfkdwxxf.supabase.co";
+  const supabaseKey = "sb_publishable_L39SGNHMqWijT5_cX3BwDA_J5JWnrPA";
+  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+  // ===== state =====
+  let view = "day"; // day | week | month
+  let rateChart = null;
+
+  // ===== dom =====
+  const tabs = [...document.querySelectorAll(".tab")];
+  const scheduleTitle = document.getElementById("scheduleTitle");
+  const todoTitle = document.getElementById("todoTitle");
+  const rangeLabel = document.getElementById("rangeLabel");
+  const statusLine = document.getElementById("statusLine");
+
+  const schDate = document.getElementById("schDate");
+  const schTime = document.getElementById("schTime");
+  const schText = document.getElementById("schText");
+  const addScheduleBtn = document.getElementById("addSchedule");
+  const scheduleBody = document.getElementById("scheduleBody");
+
+  const todoText = document.getElementById("todoText");
+  const todoDate = document.getElementById("todoDate");
+  const addTodoBtn = document.getElementById("addTodo");
+  const todoBody = document.getElementById("todoBody");
+
+  const refreshAllBtn = document.getElementById("refreshAll");
+  const markAllDoneBtn = document.getElementById("markAllDone");
+
+  // ===== utils =====
+  const pad = (n) => String(n).padStart(2,"0");
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+  function todayStr() { return ymd(new Date()); }
+
+  function startOfWeek(date) { // Monday start
+    const d = new Date(date);
+    const day = (d.getDay() + 6) % 7; // Mon=0..Sun=6
+    d.setDate(d.getDate() - day);
+    d.setHours(0,0,0,0);
+    return d;
+  }
+  function endOfWeek(date) {
+    const s = startOfWeek(date);
+    const e = new Date(s);
+    e.setDate(e.getDate() + 6);
+    e.setHours(23,59,59,999);
+    return e;
+  }
+  function startOfMonth(date) {
+    const d = new Date(date);
+    d.setDate(1); d.setHours(0,0,0,0);
+    return d;
+  }
+  function endOfMonth(date) {
+    const d = new Date(date);
+    d.setMonth(d.getMonth()+1, 0);
+    d.setHours(23,59,59,999);
+    return d;
+  }
+
+  function currentRange() {
+    const now = new Date();
+    if (view === "day") {
+      const a = new Date(now); a.setHours(0,0,0,0);
+      const b = new Date(now); b.setHours(23,59,59,999);
+      return { a, b, label: "今日" };
+    }
+    if (view === "week") {
+      const a = startOfWeek(now);
+      const b = endOfWeek(now);
+      const label = `${a.getFullYear()}/${pad(a.getMonth()+1)}/${pad(a.getDate())} - ${b.getFullYear()}/${pad(b.getMonth()+1)}/${pad(b.getDate())}`;
+      return { a, b, label: `今週（${label}）` };
+    }
+    const a = startOfMonth(now);
+    const b = endOfMonth(now);
+    return { a, b, label: `今月（${a.getFullYear()}/${pad(a.getMonth()+1)}）` };
+  }
+
+  function setTitles() {
+    const jp = view === "day" ? "日" : view === "week" ? "週" : "月";
+    scheduleTitle.textContent = `スケジュール（${jp}）`;
+    todoTitle.textContent = `ToDo（${jp}）`;
+    rangeLabel.textContent = currentRange().label;
+  }
+
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function setStatus(msg, type="") {
+    const cls = type === "ok" ? "ok" : type === "err" ? "err" : type === "warn" ? "warn" : "";
+    statusLine.className = `mini ${cls}`;
+    statusLine.textContent = msg || "";
+  }
+
+  // ===== Supabase queries =====
+  async function insertSchedule(date, time, text) {
+    const { error } = await supabase.from("schedules").insert({ date, time: time || null, text });
+    if (error) throw error;
+  }
+
+  async function deleteSchedule(id) {
+    const { error } = await supabase.from("schedules").delete().eq("id", id);
+    if (error) throw error;
+  }
+
+  async function fetchSchedules(fromYmd, toYmd) {
+    const { data, error } = await supabase
+      .from("schedules")
+      .select("id, date, time, text")
+      .gte("date", fromYmd)
+      .lte("date", toYmd)
+      .order("date", { ascending: true })
+      .order("time", { ascending: true });
+
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  async function insertTodo(text, planned_date) {
+    const { error } = await supabase.from("todos").insert({
+      text,
+      planned_date,
+      done: false,
+      completed_at: null
+    });
+    if (error) throw error;
+  }
+
+  async function deleteTodo(id) {
+    const { error } = await supabase.from("todos").delete().eq("id", id);
+    if (error) throw error;
+  }
+
+  async function toggleTodo(id, done) {
+    const payload = done
+      ? { done: true, completed_at: new Date().toISOString() }
+      : { done: false, completed_at: null };
+
+    const { error } = await supabase.from("todos").update(payload).eq("id", id);
+    if (error) throw error;
+  }
+
+  async function fetchTodos(fromYmd, toYmd) {
+    const { data, error } = await supabase
+      .from("todos")
+      .select("id, text, planned_date, done")
+      .gte("planned_date", fromYmd)
+      .lte("planned_date", toYmd)
+      .order("done", { ascending: true })
+      .order("planned_date", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  async function markAllDoneInRange(fromYmd, toYmd) {
+    // 範囲内で未完了の行だけ true にする
+    const { error } = await supabase
+      .from("todos")
+      .update({ done: true, completed_at: new Date().toISOString() })
+      .eq("done", false)
+      .gte("planned_date", fromYmd)
+      .lte("planned_date", toYmd);
+
+    if (error) throw error;
+  }
+
+  // ===== render =====
+  async function renderSchedules() {
+    const { a, b } = currentRange();
+    const fromYmd = ymd(a), toYmd = ymd(b);
+
+    const rows = await fetchSchedules(fromYmd, toYmd);
+
+    scheduleBody.innerHTML = rows.map(x => `
+      <tr>
+        <td class="nowrap">${escapeHtml(x.date)}</td>
+        <td class="nowrap">${x.time ? escapeHtml(String(x.time).slice(0,5)) : ""}</td>
+        <td>${escapeHtml(x.text)}</td>
+        <td class="nowrap">
+          <button class="btn danger" data-del-sch="${x.id}">削除</button>
+        </td>
+      </tr>
+    `).join("") || `
+      <tr><td colspan="4" class="mini">（この範囲のスケジュールはまだありません）</td></tr>
+    `;
+
+    scheduleBody.querySelectorAll("[data-del-sch]").forEach(btn=>{
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-del-sch");
+        try{
+          await deleteSchedule(id);
+          await renderAll();
+          setStatus("スケジュールを削除しました", "ok");
+        }catch(e){
+          setStatus(`削除失敗：${e.message}`, "err");
+        }
+      });
+    });
+  }
+
+  async function renderTodos() {
+    const { a, b } = currentRange();
+    const fromYmd = ymd(a), toYmd = ymd(b);
+
+    const rows = await fetchTodos(fromYmd, toYmd);
+
+    todoBody.innerHTML = rows.map(t => `
+      <tr>
+        <td class="nowrap">
+          <input type="checkbox" data-todo-check="${t.id}" ${t.done ? "checked":""}>
+        </td>
+        <td class="${t.done ? "done":""}">${escapeHtml(t.text)}</td>
+        <td class="nowrap">${escapeHtml(t.planned_date)}</td>
+        <td class="nowrap">
+          <button class="btn danger" data-del-todo="${t.id}">削除</button>
+        </td>
+      </tr>
+    `).join("") || `
+      <tr><td colspan="4" class="mini">（この範囲のToDoはまだありません）</td></tr>
+    `;
+
+    // checkbox toggle
+    todoBody.querySelectorAll("[data-todo-check]").forEach(ch=>{
+      ch.addEventListener("change", async () => {
+        const id = ch.getAttribute("data-todo-check");
+        try{
+          await toggleTodo(id, ch.checked);
+          await renderAll();
+          setStatus(ch.checked ? "完了にしました" : "未完了に戻しました", "ok");
+        }catch(e){
+          setStatus(`更新失敗：${e.message}`, "err");
+        }
+      });
+    });
+
+    // delete
+    todoBody.querySelectorAll("[data-del-todo]").forEach(btn=>{
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-del-todo");
+        try{
+          await deleteTodo(id);
+          await renderAll();
+          setStatus("ToDoを削除しました", "ok");
+        }catch(e){
+          setStatus(`削除失敗：${e.message}`, "err");
+        }
+      });
+    });
+  }
+
+  async function renderRateChartForView() {
+    const { a, b, label } = currentRange();
+    const fromYmd = ymd(a), toYmd = ymd(b);
+
+    const todos = await fetchTodos(fromYmd, toYmd);
+    const total = todos.length;
+    const done = todos.filter(t => t.done).length;
+    const rate = total ? Math.round(done / total * 100) : 0;
+
+    if (rateChart) rateChart.destroy();
+    rateChart = new Chart(document.getElementById("rateChart"), {
+      type: "bar",
+      data: {
+        labels: [label],
+        datasets: [{ label: "達成率(%)", data: [rate] }]
+      },
+      options: {
+        scales: { y: { beginAtZero: true, max: 100 } }
+      }
+    });
+  }
+
+  async function renderAll() {
+    setTitles();
+    setStatus("同期中…", "warn");
+    try{
+      await renderSchedules();
+      await renderTodos();
+      await renderRateChartForView();
+      setStatus("同期OK", "ok");
+    }catch(e){
+      setStatus(`エラー：${e.message}`, "err");
+    }
+  }
+
+  // ===== init =====
+  schDate.value = todayStr();
+  todoDate.value = todayStr();
+
+  // tabs
+  tabs.forEach(t=>{
+    t.addEventListener("click", async ()=>{
+      view = t.dataset.view;
+      tabs.forEach(x=>x.classList.toggle("active", x===t));
+      await renderAll();
+    });
+  });
+
+  // add schedule
+  addScheduleBtn.addEventListener("click", async ()=>{
+    const date = schDate.value || todayStr();
+    const time = schTime.value || "";
+    const text = (schText.value || "").trim();
+    if(!text) return alert("内容を入れてね");
+
+    try{
+      await insertSchedule(date, time, text);
+      schText.value = "";
+      await renderAll();
+      setStatus("スケジュールを追加しました", "ok");
+    }catch(e){
+      setStatus(`追加失敗：${e.message}`, "err");
+    }
+  });
+
+  // add todo
+  addTodoBtn.addEventListener("click", async ()=>{
+    const text = (todoText.value || "").trim();
+    const planned = todoDate.value || todayStr();
+    if(!text) return alert("ToDoを入れてね");
+
+    try{
+      await insertTodo(text, planned);
+      todoText.value = "";
+      await renderAll();
+      setStatus("ToDoを追加しました", "ok");
+    }catch(e){
+      setStatus(`追加失敗：${e.message}`, "err");
+    }
+  });
+
+  // refresh
+  refreshAllBtn.addEventListener("click", async ()=>{
+    await renderAll();
+  });
+
+  // mark all done
+  markAllDoneBtn.addEventListener("click", async ()=>{
+    const { a, b } = currentRange();
+    const fromYmd = ymd(a), toYmd = ymd(b);
+    if(!confirm("この範囲のToDoを全部完了にする？")) return;
+
+    try{
+      await markAllDoneInRange(fromYmd, toYmd);
+      await renderAll();
+      setStatus("範囲内ToDoを全部完了にしました", "ok");
+    }catch(e){
+      setStatus(`一括完了失敗：${e.message}`, "err");
+    }
+  });
+
+  // first render
+  renderAll();
+</script>
+</body>
+</html>
