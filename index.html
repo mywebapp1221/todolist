@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>スケジュール & ToDo（日/週/月）+ 達成率（RLS）</title>
+  <title>スケジュール & ToDo（日/週/月）+ 達成率</title>
   <style>
     :root{
       --bg:#f6f7fb; --card:#fff; --text:#111827; --muted:#6b7280; --line:#e5e7eb;
@@ -24,9 +24,7 @@
     .card h2{font-size:14px;margin:0;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--muted)}
     .card .body{padding:12px 14px}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
-    input, button{
-      font:inherit; border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:#fff;
-    }
+    input, button{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff}
     input[type="time"], input[type="date"]{padding:9px 10px}
     button{cursor:pointer;font-weight:900}
     .btn{background:var(--accent);color:#fff;border-color:transparent}
@@ -44,148 +42,113 @@
     .warn{color:#b45309}
     .ok{color:#047857}
     .err{color:#b91c1c}
-
-    .authBox{max-width:520px;margin:18px auto 0}
-    .hidden{display:none!important}
   </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>スケジュール & ToDo（表） + 達成率（RLS）</h1>
-    <div class="tabs hidden" id="tabs" role="tablist" aria-label="view">
+    <h1>スケジュール & ToDo（表） + 達成率</h1>
+    <div class="tabs" role="tablist" aria-label="view">
       <button class="tab active" data-view="day">日</button>
       <button class="tab" data-view="week">週</button>
       <button class="tab" data-view="month">月</button>
     </div>
   </header>
 
-  <!-- AUTH -->
-  <section class="card authBox" id="authCard">
-    <h2>ログイン</h2>
-    <div class="body">
-      <p class="mini">
-        RLSをONにしているので、ログインしないと保存できません。
-      </p>
-      <div class="row">
-        <div style="flex:1;min-width:240px">
-          <div class="mini">メール</div>
-          <input id="email" type="email" placeholder="you@example.com">
+  <p class="mini" style="margin:10px 4px 0">
+    保存先：Supabase（ログイン無し） / 表示：日・週・月で切り替え
+  </p>
+
+  <div class="grid">
+    <!-- Schedule -->
+    <section class="card">
+      <h2 id="scheduleTitle">スケジュール（日）</h2>
+      <div class="body">
+        <div class="row">
+          <div>
+            <div class="mini">日付</div>
+            <input id="schDate" type="date">
+          </div>
+          <div>
+            <div class="mini">時間</div>
+            <input id="schTime" type="time">
+          </div>
+          <div style="flex:1;min-width:240px">
+            <div class="mini">内容</div>
+            <input id="schText" placeholder="例：英単語 30分 / 面接練習 / K.ARTS 仕込み" />
+          </div>
+          <button class="btn" id="addSchedule">追加</button>
         </div>
-        <div style="flex:1;min-width:240px">
-          <div class="mini">パスワード</div>
-          <input id="password" type="password" placeholder="password">
+
+        <div class="row" style="margin:12px 0 0; align-items:center">
+          <span class="pill">表示範囲：<b id="rangeLabel">今日</b></span>
+          <span class="spacer"></span>
+          <button class="btn ghost" id="refreshAll">更新</button>
+        </div>
+
+        <div style="margin-top:10px;overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th class="nowrap">日付</th>
+                <th class="nowrap">時間</th>
+                <th>内容</th>
+                <th class="nowrap">操作</th>
+              </tr>
+            </thead>
+            <tbody id="scheduleBody"></tbody>
+          </table>
+        </div>
+
+        <p class="mini" id="statusLine"></p>
+      </div>
+    </section>
+
+    <!-- Todo + Chart -->
+    <section class="card">
+      <h2 id="todoTitle">ToDo（日）</h2>
+      <div class="body">
+        <div class="row">
+          <div style="flex:1;min-width:240px">
+            <div class="mini">ToDo</div>
+            <input id="todoText" placeholder="例：数学 10問 / GitHubにpush / 缶ケース詰める" />
+          </div>
+          <div>
+            <div class="mini">予定日</div>
+            <input id="todoDate" type="date">
+          </div>
+          <button class="btn" id="addTodo">追加</button>
+        </div>
+
+        <div class="row" style="margin:12px 0 0; align-items:center">
+          <span class="pill">この範囲のToDo</span>
+          <span class="spacer"></span>
+          <button class="btn ghost" id="markAllDone">今日(範囲)を全部完了</button>
+        </div>
+
+        <div style="margin-top:10px;overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th class="nowrap">完了</th>
+                <th>内容</th>
+                <th class="nowrap">予定日</th>
+                <th class="nowrap">操作</th>
+              </tr>
+            </thead>
+            <tbody id="todoBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <h2>達成率（日/週/月）</h2>
+          <div class="body">
+            <canvas id="rateChart" height="120"></canvas>
+            <p class="mini">範囲内ToDoの「完了数 / 総数」から達成率(%)を計算</p>
+          </div>
         </div>
       </div>
-      <div class="row" style="margin-top:10px">
-        <button class="btn" id="signupBtn">新規登録</button>
-        <button class="btn ghost" id="loginBtn">ログイン</button>
-      </div>
-      <p class="mini warn">
-        ※ Supabase側で Auth を有効にしておいてね（Email/Password）。
-      </p>
-      <p class="mini" id="authStatus"></p>
-    </div>
-  </section>
-
-  <!-- APP -->
-  <div id="app" class="hidden">
-    <p class="mini" style="margin:10px 4px 0">
-      <span class="pill">ログイン中：<b id="userLabel">-</b></span>
-      <button class="btn ghost" id="logoutBtn" style="margin-left:10px">ログアウト</button>
-    </p>
-
-    <div class="grid">
-      <!-- Schedule -->
-      <section class="card">
-        <h2 id="scheduleTitle">スケジュール（日）</h2>
-        <div class="body">
-          <div class="row">
-            <div>
-              <div class="mini">日付</div>
-              <input id="schDate" type="date">
-            </div>
-            <div>
-              <div class="mini">時間</div>
-              <input id="schTime" type="time">
-            </div>
-            <div style="flex:1;min-width:240px">
-              <div class="mini">内容</div>
-              <input id="schText" placeholder="例：英単語 30分 / 面接練習 / K.ARTS 仕込み" />
-            </div>
-            <button class="btn" id="addSchedule">追加</button>
-          </div>
-
-          <div class="row" style="margin:12px 0 0; align-items:center">
-            <span class="pill">表示範囲：<b id="rangeLabel">今日</b></span>
-            <span class="spacer"></span>
-            <button class="btn ghost" id="refreshAll">更新</button>
-          </div>
-
-          <div style="margin-top:10px;overflow:auto">
-            <table>
-              <thead>
-                <tr>
-                  <th class="nowrap">日付</th>
-                  <th class="nowrap">時間</th>
-                  <th>内容</th>
-                  <th class="nowrap">操作</th>
-                </tr>
-              </thead>
-              <tbody id="scheduleBody"></tbody>
-            </table>
-          </div>
-
-          <p class="mini" id="statusLine"></p>
-        </div>
-      </section>
-
-      <!-- Todo + Chart -->
-      <section class="card">
-        <h2 id="todoTitle">ToDo（日）</h2>
-        <div class="body">
-          <div class="row">
-            <div style="flex:1;min-width:240px">
-              <div class="mini">ToDo</div>
-              <input id="todoText" placeholder="例：数学 10問 / GitHubにpush / 缶ケース詰める" />
-            </div>
-            <div>
-              <div class="mini">予定日</div>
-              <input id="todoDate" type="date">
-            </div>
-            <button class="btn" id="addTodo">追加</button>
-          </div>
-
-          <div class="row" style="margin:12px 0 0; align-items:center">
-            <span class="pill">この範囲のToDo</span>
-            <span class="spacer"></span>
-            <button class="btn ghost" id="markAllDone">この範囲を全部完了</button>
-          </div>
-
-          <div style="margin-top:10px;overflow:auto">
-            <table>
-              <thead>
-                <tr>
-                  <th class="nowrap">完了</th>
-                  <th>内容</th>
-                  <th class="nowrap">予定日</th>
-                  <th class="nowrap">操作</th>
-                </tr>
-              </thead>
-              <tbody id="todoBody"></tbody>
-            </table>
-          </div>
-
-          <div class="card" style="margin-top:14px">
-            <h2>達成率（日/週/月）</h2>
-            <div class="body">
-              <canvas id="rateChart" height="120"></canvas>
-              <p class="mini">範囲内ToDoの「完了数 / 総数」から達成率(%)を計算</p>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
+    </section>
   </div>
 </div>
 
@@ -194,23 +157,15 @@
 
 <script>
   // ===== Supabase =====
-  const SUPABASE_URL = "https://qzobchxakdvubfkdwxxf.supabase.co";
-  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_L39SGNHMqWijT5_cX3BwDA_J5JWnrPA";
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  const supabaseUrl = "https://qzobchxakdvubfkdwxxf.supabase.co";
+  const supabaseKey = "sb_publishable_L39SGNHMqWijT5_cX3BwDA_J5JWnrPA";
+  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-  // ===== DOM =====
-  const authCard = document.getElementById("authCard");
-  const authStatus = document.getElementById("authStatus");
-  const emailEl = document.getElementById("email");
-  const passEl = document.getElementById("password");
-  const signupBtn = document.getElementById("signupBtn");
-  const loginBtn = document.getElementById("loginBtn");
+  // ===== state =====
+  let view = "day";
+  let rateChart = null;
 
-  const app = document.getElementById("app");
-  const tabsWrap = document.getElementById("tabs");
-  const userLabel = document.getElementById("userLabel");
-  const logoutBtn = document.getElementById("logoutBtn");
-
+  // ===== dom =====
   const tabs = [...document.querySelectorAll(".tab")];
   const scheduleTitle = document.getElementById("scheduleTitle");
   const todoTitle = document.getElementById("todoTitle");
@@ -231,11 +186,6 @@
   const refreshAllBtn = document.getElementById("refreshAll");
   const markAllDoneBtn = document.getElementById("markAllDone");
 
-  // ===== state =====
-  let view = "day";
-  let rateChart = null;
-  let currentUser = null;
-
   // ===== utils =====
   const pad = (n) => String(n).padStart(2,"0");
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -243,7 +193,7 @@
 
   function startOfWeek(date) {
     const d = new Date(date);
-    const day = (d.getDay() + 6) % 7; // Mon=0..Sun=6
+    const day = (d.getDay() + 6) % 7;
     d.setDate(d.getDate() - day);
     d.setHours(0,0,0,0);
     return d;
@@ -307,37 +257,9 @@
     statusLine.textContent = msg || "";
   }
 
-  function setAuthStatus(msg, type="") {
-    const cls = type === "ok" ? "ok" : type === "err" ? "err" : type === "warn" ? "warn" : "";
-    authStatus.className = `mini ${cls}`;
-    authStatus.textContent = msg || "";
-  }
-
-  function showApp(user) {
-    currentUser = user;
-    userLabel.textContent = user?.email || user?.id || "-";
-    authCard.classList.add("hidden");
-    app.classList.remove("hidden");
-    tabsWrap.classList.remove("hidden");
-    schDate.value = todayStr();
-    todoDate.value = todayStr();
-  }
-
-  function showAuth() {
-    currentUser = null;
-    authCard.classList.remove("hidden");
-    app.classList.add("hidden");
-    tabsWrap.classList.add("hidden");
-  }
-
-  // ===== DB ops (RLS前提：必ず user_id を入れる) =====
+  // ===== Supabase ops =====
   async function insertSchedule(date, time, text) {
-    const { error } = await supabase.from("schedules").insert({
-      user_id: currentUser.id,
-      date,
-      time: time || null,
-      text
-    });
+    const { error } = await supabase.from("schedules").insert({ date, time: time || null, text });
     if (error) throw error;
   }
 
@@ -361,7 +283,6 @@
 
   async function insertTodo(text, planned_date) {
     const { error } = await supabase.from("todos").insert({
-      user_id: currentUser.id,
       text,
       planned_date,
       done: false,
@@ -413,7 +334,6 @@
   async function renderSchedules() {
     const { a, b } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
-
     const rows = await fetchSchedules(fromYmd, toYmd);
 
     scheduleBody.innerHTML = rows.map(x => `
@@ -423,9 +343,7 @@
         <td>${escapeHtml(x.text)}</td>
         <td class="nowrap"><button class="btn danger" data-del-sch="${x.id}">削除</button></td>
       </tr>
-    `).join("") || `
-      <tr><td colspan="4" class="mini">（この範囲のスケジュールはまだありません）</td></tr>
-    `;
+    `).join("") || `<tr><td colspan="4" class="mini">（この範囲のスケジュールはまだありません）</td></tr>`;
 
     scheduleBody.querySelectorAll("[data-del-sch]").forEach(btn=>{
       btn.addEventListener("click", async () => {
@@ -443,7 +361,6 @@
   async function renderTodos() {
     const { a, b } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
-
     const rows = await fetchTodos(fromYmd, toYmd);
 
     todoBody.innerHTML = rows.map(t => `
@@ -453,9 +370,7 @@
         <td class="nowrap">${escapeHtml(t.planned_date)}</td>
         <td class="nowrap"><button class="btn danger" data-del-todo="${t.id}">削除</button></td>
       </tr>
-    `).join("") || `
-      <tr><td colspan="4" class="mini">（この範囲のToDoはまだありません）</td></tr>
-    `;
+    `).join("") || `<tr><td colspan="4" class="mini">（この範囲のToDoはまだありません）</td></tr>`;
 
     todoBody.querySelectorAll("[data-todo-check]").forEach(ch=>{
       ch.addEventListener("change", async () => {
@@ -485,7 +400,6 @@
   async function renderRateChartForView() {
     const { a, b, label } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
-
     const todos = await fetchTodos(fromYmd, toYmd);
     const total = todos.length;
     const done = todos.filter(t => t.done).length;
@@ -513,42 +427,10 @@
     }
   }
 
-  // ===== Auth handlers =====
-  signupBtn.addEventListener("click", async ()=>{
-    setAuthStatus("登録中…", "warn");
-    const email = (emailEl.value || "").trim();
-    const password = (passEl.value || "").trim();
-    if (!email || !password) return setAuthStatus("メールとパスワードを入れて", "err");
+  // ===== init =====
+  schDate.value = todayStr();
+  todoDate.value = todayStr();
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) return setAuthStatus("登録失敗: " + error.message, "err");
-
-    // すぐログイン状態にならない設定の場合もあるので、案内
-    setAuthStatus("登録OK。確認メールが来る設定ならメールも見て。次はログイン。", "ok");
-    console.log("signUp:", data);
-  });
-
-  loginBtn.addEventListener("click", async ()=>{
-    setAuthStatus("ログイン中…", "warn");
-    const email = (emailEl.value || "").trim();
-    const password = (passEl.value || "").trim();
-    if (!email || !password) return setAuthStatus("メールとパスワードを入れて", "err");
-
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return setAuthStatus("ログイン失敗: " + error.message, "err");
-
-    setAuthStatus("", "");
-    showApp(data.user);
-    await renderAll();
-  });
-
-  logoutBtn.addEventListener("click", async ()=>{
-    await supabase.auth.signOut();
-    showAuth();
-    setAuthStatus("ログアウトしました", "ok");
-  });
-
-  // tabs
   tabs.forEach(t=>{
     t.addEventListener("click", async ()=>{
       view = t.dataset.view;
@@ -557,13 +439,11 @@
     });
   });
 
-  // add schedule
   addScheduleBtn.addEventListener("click", async ()=>{
     const date = schDate.value || todayStr();
     const time = schTime.value || "";
     const text = (schText.value || "").trim();
     if(!text) return alert("内容を入れてね");
-
     try{
       await insertSchedule(date, time, text);
       schText.value = "";
@@ -574,12 +454,10 @@
     }
   });
 
-  // add todo
   addTodoBtn.addEventListener("click", async ()=>{
     const text = (todoText.value || "").trim();
     const planned = todoDate.value || todayStr();
     if(!text) return alert("ToDoを入れてね");
-
     try{
       await insertTodo(text, planned);
       todoText.value = "";
@@ -596,7 +474,6 @@
     const { a, b } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
     if(!confirm("この範囲のToDoを全部完了にする？")) return;
-
     try{
       await markAllDoneInRange(fromYmd, toYmd);
       await renderAll();
@@ -606,18 +483,7 @@
     }
   });
 
-  // ===== boot =====
-  (async () => {
-    const { data } = await supabase.auth.getSession();
-    const user = data?.session?.user || null;
-    if (user) {
-      showApp(user);
-      await renderAll();
-    } else {
-      showAuth();
-      setAuthStatus("ログインしてください（RLS ON）", "warn");
-    }
-  })();
+  renderAll();
 </script>
 </body>
 </html>
