@@ -24,9 +24,7 @@
     .card h2{font-size:14px;margin:0;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--muted)}
     .card .body{padding:12px 14px}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
-    input, button{
-      font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;
-    }
+    input, button{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff}
     input[type="time"], input[type="date"]{padding:9px 10px}
     button{cursor:pointer;font-weight:900}
     .btn{background:var(--accent);color:#fff;border-color:transparent}
@@ -41,42 +39,43 @@
     .okText{color:#047857}
     .warnText{color:#b45309}
     .errText{color:#b91c1c}
-    .fatal{
-      margin:14px 0;padding:12px 14px;border:1px solid #fecaca;background:#fff1f2;border-radius:12px;display:none
-    }
+    .fatal{margin:14px 0;padding:12px 14px;border:1px solid #fecaca;background:#fff1f2;border-radius:12px;display:none}
     .fatal b{display:block;margin-bottom:6px}
     code{background:#f3f4f6;border:1px solid #e5e7eb;padding:2px 6px;border-radius:8px}
 
-    /* ===== スケジュール：日（タイムライン） ===== */
-    #scheduleView { margin-top: 10px; }
+    /* ===== スケジュール表示 ===== */
+    #scheduleView{margin-top:10px}
     .sv-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px}
-    .timeline{position:relative;padding-left:62px}
-    .tline-now{position:absolute;left:0;right:0;height:0;border-top:2px dashed #60a5fa;opacity:.75}
-    .tline-hour{position:relative;height:44px;border-left:2px solid var(--line)}
-    .tline-hour .lab{position:absolute;left:-62px;top:-8px;width:54px;text-align:right;font-size:12px;color:var(--muted)}
-    .tline-item{position:absolute;left:10px;right:0}
-    .tline-item .sv-card{box-shadow:0 8px 18px rgba(0,0,0,.05)}
     .sv-title{font-weight:900}
     .sv-sub{font-size:12px;color:var(--muted);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .sv-actions{margin-left:auto;display:flex;gap:8px}
     .sv-actions button{padding:6px 10px;border-radius:10px}
 
-    /* ===== スケジュール：週（曜日×時間の簡易カレンダー） ===== */
+    /* 日：タイムライン */
+    .timeline{position:relative;padding-left:62px}
+    .timeline.hide-now .tline-now{display:none}
+    .tline-now{position:absolute;left:0;right:0;height:0;border-top:2px dashed #60a5fa;opacity:.75}
+    .tline-hour{position:relative;height:44px;border-left:2px solid var(--line)}
+    .tline-hour .lab{position:absolute;left:-62px;top:-8px;width:54px;text-align:right;font-size:12px;color:var(--muted)}
+    .tline-item{position:absolute;left:10px;right:auto}
+    .tline-item .sv-card{box-shadow:0 8px 18px rgba(0,0,0,.05);min-height:38px}
+
+    /* 週：曜日×時間 */
     .weekgrid{display:grid;grid-template-columns:56px repeat(7,1fr);border:1px solid var(--line);border-radius:14px;overflow:hidden}
     .wg-head{background:#f3f4f6;font-size:12px;padding:10px;border-bottom:1px solid var(--line)}
     .wg-time{background:#fafafa;font-size:12px;padding:10px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
     .wg-cell{min-height:54px;padding:6px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
     .wg-badge{display:block;font-size:12px;background:#eff6ff;padding:6px 8px;border-radius:10px;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-    /* ===== スケジュール：月（カレンダー） ===== */
+    /* 月：カレンダー */
     .monthHeader{display:flex;align-items:center;gap:10px}
     .monthHeader .mBtn{padding:8px 10px;border-radius:12px}
     .month{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
     .mday{border:1px solid var(--line);border-radius:14px;min-height:104px;padding:8px;background:#fff;cursor:pointer}
     .mday .num{font-weight:900}
     .mday .dots{margin-top:6px;display:flex;gap:4px;flex-wrap:wrap}
-    .dot{width:8px;height:8px;border-radius:999px;background:#93c5fd}    /* schedule */
-    .dot.todo{background:#86efac}                                      /* todo */
+    .dot{width:8px;height:8px;border-radius:999px;background:#93c5fd}      /* schedule */
+    .dot.todo{background:#86efac}                                        /* todo */
     .mday.off{opacity:.35}
     .mday.today{outline:3px solid #bfdbfe}
     .legend{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -84,7 +83,7 @@
     .legend .sw{width:10px;height:10px;border-radius:999px;background:#93c5fd;border:1px solid var(--line)}
     .legend .sw.todo{background:#86efac}
 
-    /* ===== ToDo ===== */
+    /* ToDo */
     table{width:100%;border-collapse:collapse}
     th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;vertical-align:top}
     th{color:var(--muted);font-weight:900;background:#fafafa}
@@ -137,12 +136,11 @@
         <div class="row" style="margin:12px 0 0; align-items:center">
           <span class="pill">表示範囲：<b id="rangeLabel">今日</b></span>
           <span class="spacer"></span>
+          <button class="btn ghost" id="toggleNowLine">Now線: ON</button>
           <button class="btn ghost" id="refreshAll">更新</button>
         </div>
 
-        <!-- ★ 表の代わりに、見えるスケジュール表示 -->
         <div id="scheduleView"></div>
-
         <p class="mini" id="statusLine"></p>
       </div>
     </section>
@@ -200,7 +198,6 @@
   </div>
 </div>
 
-<!-- libs -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
@@ -227,6 +224,10 @@
   let rateChart = null;
   let monthCursor = new Date(); // 表示中の月
 
+  // now線 表示ON/OFF
+  const NOW_KEY = "showNowLine";
+  let showNowLine = (localStorage.getItem(NOW_KEY) ?? "1") === "1";
+
   // ===== dom =====
   const tabs = [...document.querySelectorAll(".tab")];
   const scheduleTitle = document.getElementById("scheduleTitle");
@@ -246,6 +247,7 @@
   const todoBody = document.getElementById("todoBody");
 
   const refreshAllBtn = document.getElementById("refreshAll");
+  const toggleNowLineBtn = document.getElementById("toggleNowLine");
   const markAllDoneBtn = document.getElementById("markAllDone");
   const carryOverNextBtn = document.getElementById("carryOverNext");
   const collectOverdueBtn = document.getElementById("collectOverdue");
@@ -289,11 +291,12 @@
 
   function currentRange() {
     if (view === "day") {
-      // ★日：選択日(schDate)で範囲を作る
       const base = new Date((schDate.value || todayStr()) + "T00:00:00");
       const a = new Date(base); a.setHours(0,0,0,0);
       const b = new Date(base); b.setHours(23,59,59,999);
-      const label = (schDate.value === todayStr() || !schDate.value) ? "今日" : `${a.getFullYear()}/${pad(a.getMonth()+1)}/${pad(a.getDate())}`;
+      const label = (!schDate.value || schDate.value === todayStr())
+        ? "今日"
+        : `${a.getFullYear()}/${pad(a.getMonth()+1)}/${pad(a.getDate())}`;
       return { a, b, label };
     }
     if (view === "week") {
@@ -303,7 +306,6 @@
       const label = `${a.getFullYear()}/${pad(a.getMonth()+1)}/${pad(a.getDate())} - ${b.getFullYear()}/${pad(b.getMonth()+1)}/${pad(b.getDate())}`;
       return { a, b, label: `今週（${label}）` };
     }
-    // 月：カーソル月を使う
     const a = startOfMonth(monthCursor);
     const b = endOfMonth(monthCursor);
     return { a, b, label: `今月（${a.getFullYear()}/${pad(a.getMonth()+1)}）` };
@@ -337,17 +339,6 @@
     const [h,m]=s.split(":").map(Number);
     if(Number.isNaN(h)||Number.isNaN(m)) return null;
     return h*60+m;
-  }
-
-  function groupByYmd(rows, key="date"){
-    const m = new Map();
-    for(const r of rows){
-      const k = r[key];
-      if(!m.has(k)) m.set(k, []);
-      m.get(k).push(r);
-    }
-    // schedules は time 順、todos は created_at 順でもよい
-    return m;
   }
 
   // ===== Supabase queries =====
@@ -446,36 +437,21 @@
   function renderScheduleDayTimeline(rows){
     scheduleView.innerHTML = "";
 
-    // ★ここが変更点：選択日で見る
     const dayKey = schDate.value || todayStr();
     const dayRows = rows.filter(r => r.date === dayKey);
 
-    const withTime = dayRows.filter(r => !!r.time);
-    const noTime = dayRows.filter(r => !r.time);
-
-    // sort
+    const withTime = dayRows.filter(r => !!r.time).slice();
+    const noTime = dayRows.filter(r => !r.time).slice();
     withTime.sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
 
     const container = document.createElement("div");
     container.className = "timeline";
+    if(!showNowLine) container.classList.add("hide-now");
 
     const startMin = 6*60;
     const endMin = 24*60;
     const totalMin = endMin - startMin;
     const pxPerMin = (44*18) / totalMin;
-
-    // ★今ライン：表示している日が「今日」の時だけ出す
-    const isTodayView = (dayKey === todayStr());
-    if(isTodayView){
-      const now = new Date();
-      const nowMin = now.getHours()*60 + now.getMinutes();
-      if(nowMin >= startMin && nowMin <= endMin){
-        const nowLine = document.createElement("div");
-        nowLine.className = "tline-now";
-        nowLine.style.top = `${(nowMin - startMin) * pxPerMin}px`;
-        container.appendChild(nowLine);
-      }
-    }
 
     // 目盛
     for(let h=6; h<=24; h++){
@@ -488,15 +464,78 @@
       container.appendChild(hour);
     }
 
-    // 予定カード
-    for(const r of withTime){
-      const m = parseHHMM(r.time);
-      if(m===null) continue;
+    // Nowライン：今日のときだけ
+    const isTodayView = (dayKey === todayStr());
+    if(isTodayView){
+      const now = new Date();
+      const nowMin = now.getHours()*60 + now.getMinutes();
+      if(nowMin >= startMin && nowMin <= endMin){
+        const nowLine = document.createElement("div");
+        nowLine.className = "tline-now";
+        nowLine.style.top = `${(nowMin - startMin) * pxPerMin}px`;
+        container.appendChild(nowLine);
+      }
+    }
 
-      const y = (m - startMin) * pxPerMin;
+    // ===== 被り解消：レーン分け =====
+    const BLOCK_MIN = 30; // 被り判定用（30分枠）
+    const items = withTime
+      .map(r=>{
+        const m = parseHHMM(r.time);
+        return { ...r, startMin: m, endMin: m===null ? null : Math.min(endMin, m + BLOCK_MIN) };
+      })
+      .filter(x=>x.startMin!==null && x.startMin>=startMin && x.startMin<=endMin);
+
+    // 重なりグループ
+    const groups = [];
+    for(const it of items){
+      let placed = false;
+      for(const g of groups){
+        const overlaps = g.some(x => !(it.endMin <= x.startMin || it.startMin >= x.endMin));
+        if(overlaps){ g.push(it); placed = true; break; }
+      }
+      if(!placed) groups.push([it]);
+    }
+
+    // レーン割り当て（貪欲）
+    for(const g of groups){
+      g.sort((a,b)=>a.startMin-b.startMin);
+      const lanesEnd = [];
+      for(const it of g){
+        let lane = -1;
+        for(let i=0;i<lanesEnd.length;i++){
+          if(it.startMin >= lanesEnd[i]){ lane = i; break; }
+        }
+        if(lane === -1){
+          lane = lanesEnd.length;
+          lanesEnd.push(it.endMin);
+        }else{
+          lanesEnd[lane] = it.endMin;
+        }
+        it._lane = lane;
+        it._laneCount = null;
+      }
+      const laneCount = lanesEnd.length;
+      for(const it of g) it._laneCount = laneCount;
+    }
+
+    // 描画
+    for(const r of items){
+      const y = (r.startMin - startMin) * pxPerMin;
       const item = document.createElement("div");
       item.className = "tline-item";
       item.style.top = `${Math.max(0, y)}px`;
+
+      const lanes = r._laneCount || 1;
+      const lane = r._lane || 0;
+
+      const gap = 8; // %
+      const full = 100;
+      const w = (full - gap*(lanes-1)) / lanes;
+      const left = lane * (w + gap);
+
+      item.style.left = `calc(10px + ${left}%)`;
+      item.style.width = `calc(${w}% )`;
 
       item.innerHTML = `
         <div class="sv-card">
@@ -556,7 +595,7 @@
       scheduleView.appendChild(empty);
     }
 
-    // 削除イベント
+    // 削除
     scheduleView.querySelectorAll("[data-del-sch]").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         try{
@@ -577,7 +616,6 @@
     const days = [...Array(7)].map((_,i)=> addDays(start,i));
     const dayKeys = days.map(d=>ymd(d));
 
-    // date -> list
     const map = new Map();
     for(const r of rows){
       if(!map.has(r.date)) map.set(r.date, []);
@@ -587,12 +625,11 @@
       arr.sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
     }
 
-    // ★ここが変更点：6〜24を1時間刻み
+    // 6〜24 を1時間刻み
     const hours = [];
     for(let h=6; h<=24; h++) hours.push(h);
 
     const names = ["月","火","水","木","金","土","日"];
-
     const grid = document.createElement("div");
     grid.className = "weekgrid";
 
@@ -622,7 +659,6 @@
           return m!==null && m>=h*60 && m<((h+1)*60);
         });
 
-        // 1時間枠なので表示数は多くなりにくいが、念のため最大5件 + more
         for(const r of list.slice(0,5)){
           const b = document.createElement("span");
           b.className = "wg-badge";
@@ -636,7 +672,6 @@
           more.textContent = `+${list.length-5}件`;
           cell.appendChild(more);
         }
-
         grid.appendChild(cell);
       }
     }
@@ -646,7 +681,7 @@
     const note = document.createElement("div");
     note.className = "mini";
     note.style.marginTop = "10px";
-    note.textContent = "※ 週は 6:00〜24:00 を1時間刻みで表示（密度アップ）";
+    note.textContent = "※ 週は 6:00〜24:00 を1時間刻みで表示";
     scheduleView.appendChild(note);
   }
 
@@ -657,7 +692,6 @@
     const y = a.getFullYear();
     const m = a.getMonth();
 
-    // ヘッダ
     const header = document.createElement("div");
     header.className = "monthHeader";
     header.innerHTML = `
@@ -677,7 +711,6 @@
     const startDow = first.getDay(); // 0=Sun
     const start = new Date(y, m, 1 - startDow);
 
-    // map
     const schMap = new Map();
     for(const r of schedules){
       if(!schMap.has(r.date)) schMap.set(r.date, []);
@@ -706,25 +739,22 @@
       cell.innerHTML = `<div class="num">${d.getDate()}</div><div class="dots"></div>`;
       const dots = cell.querySelector(".dots");
 
-      // ★予定ドット（青）
-      const schDots = Math.min(schList.length, 6);
-      for(let j=0;j<schDots;j++){
+      // schedule dots
+      for(let j=0;j<Math.min(schList.length, 6);j++){
         const dot = document.createElement("span");
         dot.className = "dot";
         dots.appendChild(dot);
       }
 
-      // ★ToDoドット（緑）(未完了を優先して数える)
-      const undone = tdList.filter(x=>!x.done).length;
-      const done = tdList.length - undone;
-      const todoDots = Math.min(tdList.length, 6);
-      for(let j=0;j<todoDots;j++){
+      // todo dots
+      for(let j=0;j<Math.min(tdList.length, 6);j++){
         const dot = document.createElement("span");
         dot.className = "dot todo";
         dots.appendChild(dot);
       }
 
       if(schList.length || tdList.length){
+        const undone = tdList.filter(x=>!x.done).length;
         const t = document.createElement("div");
         t.className = "mini";
         t.style.marginTop = "6px";
@@ -746,7 +776,6 @@
 
     scheduleView.appendChild(cal);
 
-    // prev/next
     document.getElementById("prevMonth").addEventListener("click", async ()=>{
       monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth()-1, 1);
       await renderAll();
@@ -764,10 +793,7 @@
 
     if(view === "day") renderScheduleDayTimeline(rows);
     else if(view === "week") renderScheduleWeekGrid(rows);
-    else {
-      // ★月はToDoも必要なので、ここでは仮表示（renderAllで月は別処理）
-      renderScheduleMonthCalendar(rows, []);
-    }
+    else renderScheduleMonthCalendar(rows, []);
   }
 
   // ===== ToDo render =====
@@ -840,7 +866,6 @@
       const { a, b } = currentRange();
       const fromYmd = ymd(a), toYmd = ymd(b);
 
-      // ★月は「スケジュール+ToDo」両方を取得して月カレンダーへ
       if(view === "month"){
         const [schedules, todos] = await Promise.all([
           fetchSchedules(fromYmd, toYmd),
@@ -870,13 +895,25 @@
   schDate.value = todayStr();
   todoDate.value = todayStr();
 
-  // ★日ビュー：日付を変えたらすぐタイムライン更新
+  // 日付変更で即更新
   schDate.addEventListener("change", ()=>{
     if(view === "day") renderAll();
   });
 
+  // Now線ボタン
+  function syncNowBtn(){
+    toggleNowLineBtn.textContent = `Now線: ${showNowLine ? "ON" : "OFF"}`;
+  }
+  syncNowBtn();
+  toggleNowLineBtn.addEventListener("click", ()=>{
+    showNowLine = !showNowLine;
+    localStorage.setItem(NOW_KEY, showNowLine ? "1" : "0");
+    syncNowBtn();
+    if(view === "day") renderAll();
+  });
+
   tabs.forEach(t=>{
-    t.addEventListener("click", async ()=>{
+    t.addEventListener("click", ()=>{
       if(t.dataset.view==="month") monthCursor = new Date();
       setView(t.dataset.view);
     });
