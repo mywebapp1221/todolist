@@ -32,29 +32,65 @@
     .btn{background:var(--accent);color:#fff;border-color:transparent}
     .btn.ghost{background:#fff;color:var(--text)}
     .btn.danger{background:var(--danger);color:#fff;border-color:transparent}
+    .btn.ok{background:var(--ok);color:#fff;border-color:transparent}
     .mini{font-size:12px;color:var(--muted)}
     .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);font-size:12px;background:#fafafa}
     .spacer{flex:1}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;vertical-align:top}
-    th{color:var(--muted);font-weight:900;background:#fafafa}
-    tr:last-child td{border-bottom:0}
     .nowrap{white-space:nowrap}
     .done{text-decoration:line-through;color:var(--muted)}
-    .ok{color:#047857}
-    .warn{color:#b45309}
-    .err{color:#b91c1c}
+    .okText{color:#047857}
+    .warnText{color:#b45309}
+    .errText{color:#b91c1c}
     .fatal{
       margin:14px 0;padding:12px 14px;border:1px solid #fecaca;background:#fff1f2;border-radius:12px;display:none
     }
     .fatal b{display:block;margin-bottom:6px}
     code{background:#f3f4f6;border:1px solid #e5e7eb;padding:2px 6px;border-radius:8px}
+
+    /* ===== スケジュール：日（タイムライン） ===== */
+    #scheduleView { margin-top: 10px; }
+    .sv-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+    .timeline{position:relative;padding-left:62px}
+    .tline-now{position:absolute;left:0;right:0;height:0;border-top:2px dashed #60a5fa;opacity:.75}
+    .tline-hour{position:relative;height:44px;border-left:2px solid var(--line)}
+    .tline-hour .lab{position:absolute;left:-62px;top:-8px;width:54px;text-align:right;font-size:12px;color:var(--muted)}
+    .tline-item{position:absolute;left:10px;right:0}
+    .tline-item .sv-card{box-shadow:0 8px 18px rgba(0,0,0,.05)}
+    .sv-title{font-weight:900}
+    .sv-sub{font-size:12px;color:var(--muted);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .sv-actions{margin-left:auto;display:flex;gap:8px}
+    .sv-actions button{padding:6px 10px;border-radius:10px}
+
+    /* ===== スケジュール：週（曜日×時間の簡易カレンダー） ===== */
+    .weekgrid{display:grid;grid-template-columns:56px repeat(7,1fr);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    .wg-head{background:#f3f4f6;font-size:12px;padding:10px;border-bottom:1px solid var(--line)}
+    .wg-time{background:#fafafa;font-size:12px;padding:10px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+    .wg-cell{min-height:54px;padding:6px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
+    .wg-badge{display:block;font-size:12px;background:#eff6ff;padding:6px 8px;border-radius:10px;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    /* ===== スケジュール：月（カレンダー） ===== */
+    .monthHeader{display:flex;align-items:center;gap:10px}
+    .monthHeader .mBtn{padding:8px 10px;border-radius:12px}
+    .month{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+    .mday{border:1px solid var(--line);border-radius:14px;min-height:96px;padding:8px;background:#fff;cursor:pointer}
+    .mday .num{font-weight:900}
+    .mday .dots{margin-top:6px;display:flex;gap:4px;flex-wrap:wrap}
+    .dot{width:8px;height:8px;border-radius:999px;background:#93c5fd}
+    .mday.off{opacity:.35}
+    .mday.today{outline:3px solid #bfdbfe}
+
+    /* ===== ToDo ===== */
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;vertical-align:top}
+    th{color:var(--muted);font-weight:900;background:#fafafa}
+    tr:last-child td{border-bottom:0}
+    .todo-tools{display:flex;gap:8px;flex-wrap:wrap}
   </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>スケジュール & ToDo（表） + 達成率</h1>
+    <h1>スケジュール & ToDo + 達成率</h1>
     <div class="tabs" role="tablist" aria-label="view">
       <button class="tab active" data-view="day">日</button>
       <button class="tab" data-view="week">週</button>
@@ -99,19 +135,8 @@
           <button class="btn ghost" id="refreshAll">更新</button>
         </div>
 
-        <div style="margin-top:10px;overflow:auto">
-          <table>
-            <thead>
-              <tr>
-                <th class="nowrap">日付</th>
-                <th class="nowrap">時間</th>
-                <th>内容</th>
-                <th class="nowrap">操作</th>
-              </tr>
-            </thead>
-            <tbody id="scheduleBody"></tbody>
-          </table>
-        </div>
+        <!-- ★ 表の代わりに、見えるスケジュール表示 -->
+        <div id="scheduleView"></div>
 
         <p class="mini" id="statusLine"></p>
       </div>
@@ -136,7 +161,12 @@
         <div class="row" style="margin:12px 0 0; align-items:center">
           <span class="pill">この範囲のToDo</span>
           <span class="spacer"></span>
-          <button class="btn ghost" id="markAllDone">今日(範囲)を全部完了</button>
+
+          <div class="todo-tools">
+            <button class="btn ghost" id="markAllDone">今日(範囲)を全部完了</button>
+            <button class="btn ok" id="carryOverNext">未完了を明日に持ち越し</button>
+            <button class="btn ghost" id="collectOverdue">期限切れ(過去)を今日へ集約</button>
+          </div>
         </div>
 
         <div style="margin-top:10px;overflow:auto">
@@ -181,16 +211,22 @@
   window.addEventListener("error", (e)=>showFatal(e.error || e.message));
   window.addEventListener("unhandledrejection", (e)=>showFatal(e.reason || e));
 
-  // ===== Supabase（新プロジェクト）=====
+  // ===== Supabase =====
   const SUPABASE_URL = "https://vxtrnewebvqdgnknktdt.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_z7Td1_pXRSB0GFbsak_vuw_1IIiJM59";
 
-  // ✅ sb という名前で固定（supabase という変数名は衝突しやすいので使わない）
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // ★重要：401になるなら publishable じゃなくて anon を使う
+  const SUPABASE_ANON =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dHJuZXdlYnZxZGdua25rdGR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyNDM0MDIsImV4cCI6MjA4MTgxOTQwMn0.1MtxmKyLVSp_LfyfE3jXn8TBKRf0G6WdMFLxUrM_TsM";
+
+  // ✅ sb という名前で固定（supabase という変数名は衝突しやすい）
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
   // ===== state =====
   let view = "day"; // day | week | month
   let rateChart = null;
+
+  // 月ビューのページング用
+  let monthCursor = new Date(); // 表示中の月
 
   // ===== dom =====
   const tabs = [...document.querySelectorAll(".tab")];
@@ -198,12 +234,12 @@
   const todoTitle = document.getElementById("todoTitle");
   const rangeLabel = document.getElementById("rangeLabel");
   const statusLine = document.getElementById("statusLine");
+  const scheduleView = document.getElementById("scheduleView");
 
   const schDate = document.getElementById("schDate");
   const schTime = document.getElementById("schTime");
   const schText = document.getElementById("schText");
   const addScheduleBtn = document.getElementById("addSchedule");
-  const scheduleBody = document.getElementById("scheduleBody");
 
   const todoText = document.getElementById("todoText");
   const todoDate = document.getElementById("todoDate");
@@ -212,11 +248,19 @@
 
   const refreshAllBtn = document.getElementById("refreshAll");
   const markAllDoneBtn = document.getElementById("markAllDone");
+  const carryOverNextBtn = document.getElementById("carryOverNext");
+  const collectOverdueBtn = document.getElementById("collectOverdue");
 
   // ===== utils =====
   const pad = (n) => String(n).padStart(2,"0");
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const todayStr = () => ymd(new Date());
+
+  function addDays(date, n){
+    const d = new Date(date);
+    d.setDate(d.getDate() + n);
+    return d;
+  }
 
   function startOfWeek(date) { // Monday start
     const d = new Date(date);
@@ -257,8 +301,10 @@
       const label = `${a.getFullYear()}/${pad(a.getMonth()+1)}/${pad(a.getDate())} - ${b.getFullYear()}/${pad(b.getMonth()+1)}/${pad(b.getDate())}`;
       return { a, b, label: `今週（${label}）` };
     }
-    const a = startOfMonth(now);
-    const b = endOfMonth(now);
+
+    // 月：カーソル月を使う
+    const a = startOfMonth(monthCursor);
+    const b = endOfMonth(monthCursor);
     return { a, b, label: `今月（${a.getFullYear()}/${pad(a.getMonth()+1)}）` };
   }
 
@@ -279,9 +325,30 @@
   }
 
   function setStatus(msg, type="") {
-    const cls = type === "ok" ? "ok" : type === "err" ? "err" : type === "warn" ? "warn" : "";
+    const cls = type === "ok" ? "okText" : type === "err" ? "errText" : type === "warn" ? "warnText" : "";
     statusLine.className = `mini ${cls}`;
     statusLine.textContent = msg || "";
+  }
+
+  function parseHHMM(t){
+    if(!t) return null;
+    const s = String(t).slice(0,5); // "HH:MM"
+    const [h,m]=s.split(":").map(Number);
+    if(Number.isNaN(h)||Number.isNaN(m)) return null;
+    return h*60+m;
+  }
+
+  function groupByYmd(rows){
+    const m = new Map();
+    for(const r of rows){
+      const k = r.date;
+      if(!m.has(k)) m.set(k, []);
+      m.get(k).push(r);
+    }
+    for(const [k, arr] of m){
+      arr.sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
+    }
+    return m;
   }
 
   // ===== Supabase queries =====
@@ -345,31 +412,160 @@
     if (error) throw error;
   }
 
-  // ===== render =====
-  async function renderSchedules() {
-    const { a, b } = currentRange();
-    const fromYmd = ymd(a), toYmd = ymd(b);
-    const rows = await fetchSchedules(fromYmd, toYmd);
+  // ★持ち越し：範囲内の未完了を「翌日」にする
+  async function carryOverUndoneToNextDay(fromYmd, toYmd){
+    const rows = await fetchTodos(fromYmd, toYmd);
+    const undone = rows.filter(r => !r.done);
+    if(!undone.length) return 0;
 
-    scheduleBody.innerHTML = rows.map(x => `
-      <tr>
-        <td class="nowrap">${escapeHtml(x.date)}</td>
-        <td class="nowrap">${x.time ? escapeHtml(String(x.time).slice(0,5)) : ""}</td>
-        <td>${escapeHtml(x.text)}</td>
-        <td class="nowrap">
-          <button class="btn danger" data-del-sch="${x.id}">削除</button>
-        </td>
-      </tr>
-    `).join("") || `
-      <tr><td colspan="4" class="mini">（この範囲のスケジュールはまだありません）</td></tr>
-    `;
+    // 「翌日」は view によって違う（dayなら明日、week/monthなら範囲の最終日の翌日）
+    const base = new Date(toYmd + "T00:00:00");
+    const next = addDays(base, 1);
+    const nextYmd = ymd(next);
 
-    scheduleBody.querySelectorAll("[data-del-sch]").forEach(btn=>{
-      btn.addEventListener("click", async () => {
+    const ids = undone.map(x => x.id);
+    const { error } = await sb
+      .from("todos")
+      .update({ planned_date: nextYmd })
+      .in("id", ids);
+
+    if(error) throw error;
+    return undone.length;
+  }
+
+  // ★期限切れ集約：過去日の未完了（done=false）を「今日」に寄せる
+  async function collectOverdueToToday(){
+    const today = todayStr();
+    const { data, error } = await sb
+      .from("todos")
+      .select("id, planned_date, done")
+      .lt("planned_date", today)
+      .eq("done", false);
+
+    if(error) throw error;
+    const ids = (data ?? []).map(x => x.id);
+    if(!ids.length) return 0;
+
+    const { error: e2 } = await sb
+      .from("todos")
+      .update({ planned_date: today })
+      .in("id", ids);
+
+    if(e2) throw e2;
+    return ids.length;
+  }
+
+  // ===== スケジュール描画（3ビュー） =====
+  function renderScheduleDayTimeline(rows){
+    scheduleView.innerHTML = "";
+
+    const dayKey = todayStr();
+    const todayRows = rows.filter(r => r.date === dayKey);
+    const withTime = todayRows.filter(r => !!r.time);
+    const noTime = todayRows.filter(r => !r.time);
+
+    const container = document.createElement("div");
+    container.className = "timeline";
+
+    const startMin = 6*60;
+    const endMin = 24*60;
+    const totalMin = endMin - startMin;
+    const pxPerMin = (44*18) / totalMin; // 18時間×44px
+
+    // 今ライン
+    const now = new Date();
+    const nowMin = now.getHours()*60 + now.getMinutes();
+    if(nowMin >= startMin && nowMin <= endMin){
+      const nowLine = document.createElement("div");
+      nowLine.className = "tline-now";
+      nowLine.style.top = `${(nowMin - startMin) * pxPerMin}px`;
+      container.appendChild(nowLine);
+    }
+
+    // 目盛
+    for(let h=6; h<=24; h++){
+      const hour = document.createElement("div");
+      hour.className = "tline-hour";
+      const lab = document.createElement("div");
+      lab.className = "lab";
+      lab.textContent = String(h).padStart(2,"0")+":00";
+      hour.appendChild(lab);
+      container.appendChild(hour);
+    }
+
+    // 予定カード
+    for(const r of withTime){
+      const m = parseHHMM(r.time);
+      if(m===null) continue;
+
+      const y = (m - startMin) * pxPerMin;
+      const item = document.createElement("div");
+      item.className = "tline-item";
+      item.style.top = `${Math.max(0, y)}px`;
+
+      item.innerHTML = `
+        <div class="sv-card">
+          <div class="sv-title">${escapeHtml(String(r.time).slice(0,5))}　${escapeHtml(r.text || "")}</div>
+          <div class="sv-sub">
+            <span>${escapeHtml(r.date)}</span>
+            <span class="spacer"></span>
+            <span class="sv-actions">
+              <button class="btn danger" data-del-sch="${r.id}">削除</button>
+            </span>
+          </div>
+        </div>
+      `;
+      container.appendChild(item);
+    }
+
+    scheduleView.appendChild(container);
+
+    // 時間なしメモ
+    if(noTime.length){
+      const box = document.createElement("div");
+      box.style.marginTop = "12px";
+      box.innerHTML = `<div class="sv-card"><div class="sv-title">時間なしメモ</div></div>`;
+      const inner = box.querySelector(".sv-card");
+      for(const r of noTime){
+        const p = document.createElement("div");
+        p.className = "mini";
+        p.style.marginTop = "6px";
+        p.textContent = `・${r.text}`;
+        const del = document.createElement("button");
+        del.className = "btn danger";
+        del.style.marginLeft = "10px";
+        del.style.padding = "6px 10px";
+        del.textContent = "削除";
+        del.addEventListener("click", async ()=>{
+          try{
+            await deleteSchedule(r.id);
+            await renderAll();
+            setStatus("削除しました", "ok");
+          }catch(e){
+            setStatus(`削除失敗：${e.message}`, "err");
+          }
+        });
+        p.appendChild(del);
+        inner.appendChild(p);
+      }
+      scheduleView.appendChild(box);
+    }
+
+    if(!todayRows.length){
+      const empty = document.createElement("div");
+      empty.className = "sv-card";
+      empty.style.marginTop = "10px";
+      empty.innerHTML = `<div class="mini">（今日のスケジュールはまだありません）</div>`;
+      scheduleView.appendChild(empty);
+    }
+
+    // 削除イベント
+    scheduleView.querySelectorAll("[data-del-sch]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
         try{
           await deleteSchedule(btn.getAttribute("data-del-sch"));
           await renderAll();
-          setStatus("スケジュールを削除しました", "ok");
+          setStatus("削除しました", "ok");
         }catch(e){
           setStatus(`削除失敗：${e.message}`, "err");
         }
@@ -377,6 +573,157 @@
     });
   }
 
+  function renderScheduleWeekGrid(rows){
+    scheduleView.innerHTML = "";
+
+    const start = startOfWeek(new Date());
+    const days = [...Array(7)].map((_,i)=> addDays(start,i));
+    const dayKeys = days.map(d=>ymd(d));
+    const map = groupByYmd(rows);
+
+    const hours = [6,9,12,15,18,21];
+    const names = ["月","火","水","木","金","土","日"];
+
+    const grid = document.createElement("div");
+    grid.className = "weekgrid";
+
+    grid.appendChild(Object.assign(document.createElement("div"), { className:"wg-head", textContent:"" }));
+    for(let i=0;i<7;i++){
+      const d = days[i];
+      const head = document.createElement("div");
+      head.className = "wg-head";
+      head.textContent = `${names[i]} ${d.getMonth()+1}/${d.getDate()}`;
+      grid.appendChild(head);
+    }
+
+    for(const h of hours){
+      const tcell = document.createElement("div");
+      tcell.className = "wg-time";
+      tcell.textContent = `${String(h).padStart(2,"0")}:00`;
+      grid.appendChild(tcell);
+
+      for(let i=0;i<7;i++){
+        const k = dayKeys[i];
+        const cell = document.createElement("div");
+        cell.className = "wg-cell";
+
+        const list = (map.get(k)||[]).filter(r=>{
+          if(!r.time) return false;
+          const m = parseHHMM(r.time);
+          return m!==null && m>=h*60 && m<(h*60+180);
+        });
+
+        for(const r of list.slice(0,3)){
+          const b = document.createElement("span");
+          b.className = "wg-badge";
+          b.title = `${String(r.time).slice(0,5)} ${r.text}`;
+          b.textContent = `${String(r.time).slice(0,5)} ${r.text}`;
+          cell.appendChild(b);
+        }
+        if(list.length>3){
+          const more = document.createElement("div");
+          more.className = "mini";
+          more.textContent = `+${list.length-3}件`;
+          cell.appendChild(more);
+        }
+        grid.appendChild(cell);
+      }
+    }
+
+    scheduleView.appendChild(grid);
+
+    const note = document.createElement("div");
+    note.className = "mini";
+    note.style.marginTop = "10px";
+    note.textContent = "※ 週は「6/9/12/15/18/21時」の3時間枠でざっくり表示（必要なら増やせる）";
+    scheduleView.appendChild(note);
+  }
+
+  function renderScheduleMonthCalendar(rows){
+    scheduleView.innerHTML = "";
+
+    const a = startOfMonth(monthCursor);
+    const y = a.getFullYear();
+    const m = a.getMonth(); // 0-11
+
+    // ヘッダ（前月/次月）
+    const header = document.createElement("div");
+    header.className = "monthHeader";
+    header.innerHTML = `
+      <button class="btn ghost mBtn" id="prevMonth">←</button>
+      <div class="sv-card" style="padding:8px 12px"><b>${y}年 ${m+1}月</b></div>
+      <button class="btn ghost mBtn" id="nextMonth">→</button>
+      <span class="spacer"></span>
+      <span class="pill">クリックで日へ</span>
+    `;
+    scheduleView.appendChild(header);
+
+    const first = new Date(y, m, 1);
+    const startDow = first.getDay(); // 0=Sun
+    const start = new Date(y, m, 1 - startDow); // 日曜始まり
+
+    const map = groupByYmd(rows);
+    const cal = document.createElement("div");
+    cal.className = "month";
+
+    for(let i=0;i<42;i++){
+      const d = addDays(start,i);
+      const k = ymd(d);
+      const inMonth = d.getMonth() === m;
+
+      const cell = document.createElement("div");
+      cell.className = "mday" + (inMonth ? "" : " off") + (k===todayStr() ? " today" : "");
+
+      const list = map.get(k) || [];
+      cell.innerHTML = `<div class="num">${d.getDate()}</div><div class="dots"></div>`;
+      const dots = cell.querySelector(".dots");
+      for(let j=0;j<Math.min(list.length,6);j++){
+        const dot = document.createElement("span");
+        dot.className = "dot";
+        dots.appendChild(dot);
+      }
+      if(list.length){
+        const t = document.createElement("div");
+        t.className = "mini";
+        t.style.marginTop = "6px";
+        t.textContent = `${list.length}件`;
+        cell.appendChild(t);
+      }
+
+      cell.addEventListener("click", ()=>{
+        // 日付入力にセットして「日」へ
+        schDate.value = k;
+        todoDate.value = k;
+        setView("day");
+      });
+
+      cal.appendChild(cell);
+    }
+
+    scheduleView.appendChild(cal);
+
+    // prev/next
+    document.getElementById("prevMonth").addEventListener("click", async ()=>{
+      monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth()-1, 1);
+      await renderAll();
+    });
+    document.getElementById("nextMonth").addEventListener("click", async ()=>{
+      monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth()+1, 1);
+      await renderAll();
+    });
+  }
+
+  async function renderSchedules() {
+    const { a, b } = currentRange();
+    const fromYmd = ymd(a), toYmd = ymd(b);
+    const rows = await fetchSchedules(fromYmd, toYmd);
+
+    if(view === "day") renderScheduleDayTimeline(rows);
+    else if(view === "week") renderScheduleWeekGrid(rows);
+    else renderScheduleMonthCalendar(rows);
+  }
+
+  // ===== ToDo render =====
   async function renderTodos() {
     const { a, b } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
@@ -434,13 +781,8 @@
     if (rateChart) rateChart.destroy();
     rateChart = new Chart(document.getElementById("rateChart"), {
       type: "bar",
-      data: {
-        labels: [label],
-        datasets: [{ label: "達成率(%)", data: [rate] }]
-      },
-      options: {
-        scales: { y: { beginAtZero: true, max: 100 } }
-      }
+      data: { labels: [label], datasets: [{ label: "達成率(%)", data: [rate] }] },
+      options: { scales: { y: { beginAtZero: true, max: 100 } } }
     });
   }
 
@@ -458,15 +800,21 @@
     }
   }
 
+  function setView(v){
+    view = v;
+    tabs.forEach(t=>t.classList.toggle("active", t.dataset.view===v));
+    renderAll();
+  }
+
   // ===== init =====
   schDate.value = todayStr();
   todoDate.value = todayStr();
 
   tabs.forEach(t=>{
     t.addEventListener("click", async ()=>{
-      view = t.dataset.view;
-      tabs.forEach(x=>x.classList.toggle("active", x===t));
-      await renderAll();
+      // 月だけカーソル月は「今月」に戻す
+      if(t.dataset.view==="month") monthCursor = new Date();
+      setView(t.dataset.view);
     });
   });
 
@@ -514,6 +862,33 @@
       setStatus("範囲内ToDoを全部完了にしました", "ok");
     }catch(e){
       setStatus(`一括完了失敗：${e.message}`, "err");
+    }
+  });
+
+  // ★未完了を明日に持ち越し
+  carryOverNextBtn.addEventListener("click", async ()=>{
+    const { a, b } = currentRange();
+    const fromYmd = ymd(a), toYmd = ymd(b);
+    if(!confirm("この範囲の『未完了』を翌日に持ち越す？")) return;
+
+    try{
+      const n = await carryOverUndoneToNextDay(fromYmd, toYmd);
+      await renderAll();
+      setStatus(n ? `未完了 ${n}件 を翌日に持ち越しました` : "未完了はありません", "ok");
+    }catch(e){
+      setStatus(`持ち越し失敗：${e.message}`, "err");
+    }
+  });
+
+  // ★期限切れを今日へ集約
+  collectOverdueBtn.addEventListener("click", async ()=>{
+    if(!confirm("過去日の未完了ToDoを『今日』に集約する？")) return;
+    try{
+      const n = await collectOverdueToToday();
+      await renderAll();
+      setStatus(n ? `期限切れ ${n}件 を今日へ集約しました` : "期限切れ未完了はありません", "ok");
+    }catch(e){
+      setStatus(`集約失敗：${e.message}`, "err");
     }
   });
 
