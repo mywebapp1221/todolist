@@ -72,12 +72,17 @@
     .monthHeader{display:flex;align-items:center;gap:10px}
     .monthHeader .mBtn{padding:8px 10px;border-radius:12px}
     .month{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
-    .mday{border:1px solid var(--line);border-radius:14px;min-height:96px;padding:8px;background:#fff;cursor:pointer}
+    .mday{border:1px solid var(--line);border-radius:14px;min-height:104px;padding:8px;background:#fff;cursor:pointer}
     .mday .num{font-weight:900}
     .mday .dots{margin-top:6px;display:flex;gap:4px;flex-wrap:wrap}
-    .dot{width:8px;height:8px;border-radius:999px;background:#93c5fd}
+    .dot{width:8px;height:8px;border-radius:999px;background:#93c5fd}    /* schedule */
+    .dot.todo{background:#86efac}                                      /* todo */
     .mday.off{opacity:.35}
     .mday.today{outline:3px solid #bfdbfe}
+    .legend{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .legend .item{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+    .legend .sw{width:10px;height:10px;border-radius:999px;background:#93c5fd;border:1px solid var(--line)}
+    .legend .sw.todo{background:#86efac}
 
     /* ===== ToDo ===== */
     table{width:100%;border-collapse:collapse}
@@ -213,19 +218,13 @@
 
   // ===== Supabase =====
   const SUPABASE_URL = "https://vxtrnewebvqdgnknktdt.supabase.co";
-
-  // ★重要：401になるなら publishable じゃなくて anon を使う
   const SUPABASE_ANON =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dHJuZXdlYnZxZGdua25rdGR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyNDM0MDIsImV4cCI6MjA4MTgxOTQwMn0.1MtxmKyLVSp_LfyfE3jXn8TBKRf0G6WdMFLxUrM_TsM";
-
-  // ✅ sb という名前で固定（supabase という変数名は衝突しやすい）
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
   // ===== state =====
   let view = "day"; // day | week | month
   let rateChart = null;
-
-  // 月ビューのページング用
   let monthCursor = new Date(); // 表示中の月
 
   // ===== dom =====
@@ -289,19 +288,21 @@
   }
 
   function currentRange() {
-    const now = new Date();
     if (view === "day") {
-      const a = new Date(now); a.setHours(0,0,0,0);
-      const b = new Date(now); b.setHours(23,59,59,999);
-      return { a, b, label: "今日" };
+      // ★日：選択日(schDate)で範囲を作る
+      const base = new Date((schDate.value || todayStr()) + "T00:00:00");
+      const a = new Date(base); a.setHours(0,0,0,0);
+      const b = new Date(base); b.setHours(23,59,59,999);
+      const label = (schDate.value === todayStr() || !schDate.value) ? "今日" : `${a.getFullYear()}/${pad(a.getMonth()+1)}/${pad(a.getDate())}`;
+      return { a, b, label };
     }
     if (view === "week") {
+      const now = new Date();
       const a = startOfWeek(now);
       const b = endOfWeek(now);
       const label = `${a.getFullYear()}/${pad(a.getMonth()+1)}/${pad(a.getDate())} - ${b.getFullYear()}/${pad(b.getMonth()+1)}/${pad(b.getDate())}`;
       return { a, b, label: `今週（${label}）` };
     }
-
     // 月：カーソル月を使う
     const a = startOfMonth(monthCursor);
     const b = endOfMonth(monthCursor);
@@ -332,22 +333,20 @@
 
   function parseHHMM(t){
     if(!t) return null;
-    const s = String(t).slice(0,5); // "HH:MM"
+    const s = String(t).slice(0,5);
     const [h,m]=s.split(":").map(Number);
     if(Number.isNaN(h)||Number.isNaN(m)) return null;
     return h*60+m;
   }
 
-  function groupByYmd(rows){
+  function groupByYmd(rows, key="date"){
     const m = new Map();
     for(const r of rows){
-      const k = r.date;
+      const k = r[key];
       if(!m.has(k)) m.set(k, []);
       m.get(k).push(r);
     }
-    for(const [k, arr] of m){
-      arr.sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
-    }
+    // schedules は time 順、todos は created_at 順でもよい
     return m;
   }
 
@@ -386,7 +385,6 @@
     const payload = done
       ? { done: true, completed_at: new Date().toISOString() }
       : { done: false, completed_at: null };
-
     const { error } = await sb.from("todos").update(payload).eq("id", id);
     if (error) throw error;
   }
@@ -412,28 +410,21 @@
     if (error) throw error;
   }
 
-  // ★持ち越し：範囲内の未完了を「翌日」にする
   async function carryOverUndoneToNextDay(fromYmd, toYmd){
     const rows = await fetchTodos(fromYmd, toYmd);
     const undone = rows.filter(r => !r.done);
     if(!undone.length) return 0;
 
-    // 「翌日」は view によって違う（dayなら明日、week/monthなら範囲の最終日の翌日）
     const base = new Date(toYmd + "T00:00:00");
     const next = addDays(base, 1);
     const nextYmd = ymd(next);
 
     const ids = undone.map(x => x.id);
-    const { error } = await sb
-      .from("todos")
-      .update({ planned_date: nextYmd })
-      .in("id", ids);
-
+    const { error } = await sb.from("todos").update({ planned_date: nextYmd }).in("id", ids);
     if(error) throw error;
     return undone.length;
   }
 
-  // ★期限切れ集約：過去日の未完了（done=false）を「今日」に寄せる
   async function collectOverdueToToday(){
     const today = todayStr();
     const { data, error } = await sb
@@ -441,16 +432,12 @@
       .select("id, planned_date, done")
       .lt("planned_date", today)
       .eq("done", false);
-
     if(error) throw error;
+
     const ids = (data ?? []).map(x => x.id);
     if(!ids.length) return 0;
 
-    const { error: e2 } = await sb
-      .from("todos")
-      .update({ planned_date: today })
-      .in("id", ids);
-
+    const { error: e2 } = await sb.from("todos").update({ planned_date: today }).in("id", ids);
     if(e2) throw e2;
     return ids.length;
   }
@@ -459,10 +446,15 @@
   function renderScheduleDayTimeline(rows){
     scheduleView.innerHTML = "";
 
-    const dayKey = todayStr();
-    const todayRows = rows.filter(r => r.date === dayKey);
-    const withTime = todayRows.filter(r => !!r.time);
-    const noTime = todayRows.filter(r => !r.time);
+    // ★ここが変更点：選択日で見る
+    const dayKey = schDate.value || todayStr();
+    const dayRows = rows.filter(r => r.date === dayKey);
+
+    const withTime = dayRows.filter(r => !!r.time);
+    const noTime = dayRows.filter(r => !r.time);
+
+    // sort
+    withTime.sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
 
     const container = document.createElement("div");
     container.className = "timeline";
@@ -470,16 +462,19 @@
     const startMin = 6*60;
     const endMin = 24*60;
     const totalMin = endMin - startMin;
-    const pxPerMin = (44*18) / totalMin; // 18時間×44px
+    const pxPerMin = (44*18) / totalMin;
 
-    // 今ライン
-    const now = new Date();
-    const nowMin = now.getHours()*60 + now.getMinutes();
-    if(nowMin >= startMin && nowMin <= endMin){
-      const nowLine = document.createElement("div");
-      nowLine.className = "tline-now";
-      nowLine.style.top = `${(nowMin - startMin) * pxPerMin}px`;
-      container.appendChild(nowLine);
+    // ★今ライン：表示している日が「今日」の時だけ出す
+    const isTodayView = (dayKey === todayStr());
+    if(isTodayView){
+      const now = new Date();
+      const nowMin = now.getHours()*60 + now.getMinutes();
+      if(nowMin >= startMin && nowMin <= endMin){
+        const nowLine = document.createElement("div");
+        nowLine.className = "tline-now";
+        nowLine.style.top = `${(nowMin - startMin) * pxPerMin}px`;
+        container.appendChild(nowLine);
+      }
     }
 
     // 目盛
@@ -527,10 +522,11 @@
       box.innerHTML = `<div class="sv-card"><div class="sv-title">時間なしメモ</div></div>`;
       const inner = box.querySelector(".sv-card");
       for(const r of noTime){
-        const p = document.createElement("div");
-        p.className = "mini";
-        p.style.marginTop = "6px";
-        p.textContent = `・${r.text}`;
+        const line = document.createElement("div");
+        line.className = "mini";
+        line.style.marginTop = "6px";
+        line.textContent = `・${r.text}`;
+
         const del = document.createElement("button");
         del.className = "btn danger";
         del.style.marginLeft = "10px";
@@ -545,17 +541,18 @@
             setStatus(`削除失敗：${e.message}`, "err");
           }
         });
-        p.appendChild(del);
-        inner.appendChild(p);
+
+        line.appendChild(del);
+        inner.appendChild(line);
       }
       scheduleView.appendChild(box);
     }
 
-    if(!todayRows.length){
+    if(!dayRows.length){
       const empty = document.createElement("div");
       empty.className = "sv-card";
       empty.style.marginTop = "10px";
-      empty.innerHTML = `<div class="mini">（今日のスケジュールはまだありません）</div>`;
+      empty.innerHTML = `<div class="mini">（この日のスケジュールはまだありません）</div>`;
       scheduleView.appendChild(empty);
     }
 
@@ -579,9 +576,21 @@
     const start = startOfWeek(new Date());
     const days = [...Array(7)].map((_,i)=> addDays(start,i));
     const dayKeys = days.map(d=>ymd(d));
-    const map = groupByYmd(rows);
 
-    const hours = [6,9,12,15,18,21];
+    // date -> list
+    const map = new Map();
+    for(const r of rows){
+      if(!map.has(r.date)) map.set(r.date, []);
+      map.get(r.date).push(r);
+    }
+    for(const [k, arr] of map){
+      arr.sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
+    }
+
+    // ★ここが変更点：6〜24を1時間刻み
+    const hours = [];
+    for(let h=6; h<=24; h++) hours.push(h);
+
     const names = ["月","火","水","木","金","土","日"];
 
     const grid = document.createElement("div");
@@ -610,22 +619,24 @@
         const list = (map.get(k)||[]).filter(r=>{
           if(!r.time) return false;
           const m = parseHHMM(r.time);
-          return m!==null && m>=h*60 && m<(h*60+180);
+          return m!==null && m>=h*60 && m<((h+1)*60);
         });
 
-        for(const r of list.slice(0,3)){
+        // 1時間枠なので表示数は多くなりにくいが、念のため最大5件 + more
+        for(const r of list.slice(0,5)){
           const b = document.createElement("span");
           b.className = "wg-badge";
           b.title = `${String(r.time).slice(0,5)} ${r.text}`;
           b.textContent = `${String(r.time).slice(0,5)} ${r.text}`;
           cell.appendChild(b);
         }
-        if(list.length>3){
+        if(list.length>5){
           const more = document.createElement("div");
           more.className = "mini";
-          more.textContent = `+${list.length-3}件`;
+          more.textContent = `+${list.length-5}件`;
           cell.appendChild(more);
         }
+
         grid.appendChild(cell);
       }
     }
@@ -635,18 +646,18 @@
     const note = document.createElement("div");
     note.className = "mini";
     note.style.marginTop = "10px";
-    note.textContent = "※ 週は「6/9/12/15/18/21時」の3時間枠でざっくり表示（必要なら増やせる）";
+    note.textContent = "※ 週は 6:00〜24:00 を1時間刻みで表示（密度アップ）";
     scheduleView.appendChild(note);
   }
 
-  function renderScheduleMonthCalendar(rows){
+  function renderScheduleMonthCalendar(schedules, todos){
     scheduleView.innerHTML = "";
 
     const a = startOfMonth(monthCursor);
     const y = a.getFullYear();
-    const m = a.getMonth(); // 0-11
+    const m = a.getMonth();
 
-    // ヘッダ（前月/次月）
+    // ヘッダ
     const header = document.createElement("div");
     header.className = "monthHeader";
     header.innerHTML = `
@@ -654,15 +665,30 @@
       <div class="sv-card" style="padding:8px 12px"><b>${y}年 ${m+1}月</b></div>
       <button class="btn ghost mBtn" id="nextMonth">→</button>
       <span class="spacer"></span>
+      <span class="legend">
+        <span class="item"><span class="sw"></span>予定</span>
+        <span class="item"><span class="sw todo"></span>ToDo</span>
+      </span>
       <span class="pill">クリックで日へ</span>
     `;
     scheduleView.appendChild(header);
 
     const first = new Date(y, m, 1);
     const startDow = first.getDay(); // 0=Sun
-    const start = new Date(y, m, 1 - startDow); // 日曜始まり
+    const start = new Date(y, m, 1 - startDow);
 
-    const map = groupByYmd(rows);
+    // map
+    const schMap = new Map();
+    for(const r of schedules){
+      if(!schMap.has(r.date)) schMap.set(r.date, []);
+      schMap.get(r.date).push(r);
+    }
+    const todoMap = new Map();
+    for(const t of todos){
+      if(!todoMap.has(t.planned_date)) todoMap.set(t.planned_date, []);
+      todoMap.get(t.planned_date).push(t);
+    }
+
     const cal = document.createElement("div");
     cal.className = "month";
 
@@ -674,24 +700,42 @@
       const cell = document.createElement("div");
       cell.className = "mday" + (inMonth ? "" : " off") + (k===todayStr() ? " today" : "");
 
-      const list = map.get(k) || [];
+      const schList = schMap.get(k) || [];
+      const tdList = todoMap.get(k) || [];
+
       cell.innerHTML = `<div class="num">${d.getDate()}</div><div class="dots"></div>`;
       const dots = cell.querySelector(".dots");
-      for(let j=0;j<Math.min(list.length,6);j++){
+
+      // ★予定ドット（青）
+      const schDots = Math.min(schList.length, 6);
+      for(let j=0;j<schDots;j++){
         const dot = document.createElement("span");
         dot.className = "dot";
         dots.appendChild(dot);
       }
-      if(list.length){
+
+      // ★ToDoドット（緑）(未完了を優先して数える)
+      const undone = tdList.filter(x=>!x.done).length;
+      const done = tdList.length - undone;
+      const todoDots = Math.min(tdList.length, 6);
+      for(let j=0;j<todoDots;j++){
+        const dot = document.createElement("span");
+        dot.className = "dot todo";
+        dots.appendChild(dot);
+      }
+
+      if(schList.length || tdList.length){
         const t = document.createElement("div");
         t.className = "mini";
         t.style.marginTop = "6px";
-        t.textContent = `${list.length}件`;
+        const parts = [];
+        if(schList.length) parts.push(`予定${schList.length}`);
+        if(tdList.length) parts.push(`ToDo${tdList.length}（未${undone}）`);
+        t.textContent = parts.join(" / ");
         cell.appendChild(t);
       }
 
       cell.addEventListener("click", ()=>{
-        // 日付入力にセットして「日」へ
         schDate.value = k;
         todoDate.value = k;
         setView("day");
@@ -720,7 +764,10 @@
 
     if(view === "day") renderScheduleDayTimeline(rows);
     else if(view === "week") renderScheduleWeekGrid(rows);
-    else renderScheduleMonthCalendar(rows);
+    else {
+      // ★月はToDoも必要なので、ここでは仮表示（renderAllで月は別処理）
+      renderScheduleMonthCalendar(rows, []);
+    }
   }
 
   // ===== ToDo render =====
@@ -790,7 +837,20 @@
     setTitles();
     setStatus("同期中…", "warn");
     try{
-      await renderSchedules();
+      const { a, b } = currentRange();
+      const fromYmd = ymd(a), toYmd = ymd(b);
+
+      // ★月は「スケジュール+ToDo」両方を取得して月カレンダーへ
+      if(view === "month"){
+        const [schedules, todos] = await Promise.all([
+          fetchSchedules(fromYmd, toYmd),
+          fetchTodos(fromYmd, toYmd),
+        ]);
+        renderScheduleMonthCalendar(schedules, todos);
+      }else{
+        await renderSchedules();
+      }
+
       await renderTodos();
       await renderRateChartForView();
       setStatus("同期OK", "ok");
@@ -810,9 +870,13 @@
   schDate.value = todayStr();
   todoDate.value = todayStr();
 
+  // ★日ビュー：日付を変えたらすぐタイムライン更新
+  schDate.addEventListener("change", ()=>{
+    if(view === "day") renderAll();
+  });
+
   tabs.forEach(t=>{
     t.addEventListener("click", async ()=>{
-      // 月だけカーソル月は「今月」に戻す
       if(t.dataset.view==="month") monthCursor = new Date();
       setView(t.dataset.view);
     });
@@ -865,7 +929,6 @@
     }
   });
 
-  // ★未完了を明日に持ち越し
   carryOverNextBtn.addEventListener("click", async ()=>{
     const { a, b } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
@@ -880,7 +943,6 @@
     }
   });
 
-  // ★期限切れを今日へ集約
   collectOverdueBtn.addEventListener("click", async ()=>{
     if(!confirm("過去日の未完了ToDoを『今日』に集約する？")) return;
     try{
