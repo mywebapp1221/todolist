@@ -51,26 +51,10 @@
     .sv-actions{margin-left:auto;display:flex;gap:8px}
     .sv-actions button{padding:6px 10px;border-radius:10px}
 
-    /* 日：タイムライン */
-    .timeline{position:relative;padding-left:62px}
-    .timeline.hide-now .tline-now{display:none}
-    .tline-now{position:absolute;left:0;right:0;height:0;border-top:2px dashed #60a5fa;opacity:.75}
-    .tline-hour{position:relative;height:44px;border-left:2px solid var(--line)}
-    .tline-hour .lab{position:absolute;left:-62px;top:-8px;width:54px;text-align:right;font-size:12px;color:var(--muted)}
-    .tline-item{position:absolute;left:10px;right:auto}
-    .tline-item .sv-card{box-shadow:0 8px 18px rgba(0,0,0,.05);min-height:38px}
-
-    /* 週：曜日×時間 */
-    .weekgrid{display:grid;grid-template-columns:56px repeat(7,1fr);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-    .wg-head{background:#f3f4f6;font-size:12px;padding:10px;border-bottom:1px solid var(--line)}
-    .wg-time{background:#fafafa;font-size:12px;padding:10px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
-    .wg-cell{min-height:54px;padding:6px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
-    .wg-badge{display:block;font-size:12px;background:#eff6ff;padding:6px 8px;border-radius:10px;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
     /* 月：カレンダー */
-    .monthHeader{display:flex;align-items:center;gap:10px}
+    .monthHeader{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .monthHeader .mBtn{padding:8px 10px;border-radius:12px}
-    .month{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+    .month{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:10px}
     .mday{border:1px solid var(--line);border-radius:14px;min-height:104px;padding:8px;background:#fff;cursor:pointer}
     .mday .num{font-weight:900}
     .mday .dots{margin-top:6px;display:flex;gap:4px;flex-wrap:wrap}
@@ -82,6 +66,14 @@
     .legend .item{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
     .legend .sw{width:10px;height:10px;border-radius:999px;background:#93c5fd;border:1px solid var(--line)}
     .legend .sw.todo{background:#86efac}
+
+    /* 月：一覧 */
+    .monthList{margin-top:10px}
+    .monthRow{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;margin-top:8px}
+    .monthRow .left{min-width:0}
+    .monthRow .title{font-weight:900}
+    .monthRow .sub{font-size:12px;color:var(--muted);margin-top:3px}
+    .monthRow button{padding:6px 10px;border-radius:10px}
 
     /* ToDo */
     table{width:100%;border-collapse:collapse}
@@ -136,7 +128,6 @@
         <div class="row" style="margin:12px 0 0; align-items:center">
           <span class="pill">表示範囲：<b id="rangeLabel">今日</b></span>
           <span class="spacer"></span>
-          <button class="btn ghost" id="toggleNowLine">Now線: ON</button>
           <button class="btn ghost" id="refreshAll">更新</button>
         </div>
 
@@ -159,17 +150,6 @@
             <input id="todoDate" type="date">
           </div>
           <button class="btn" id="addTodo">追加</button>
-        </div>
-
-        <div class="row" style="margin:12px 0 0; align-items:center">
-          <span class="pill">この範囲のToDo</span>
-          <span class="spacer"></span>
-
-          <div class="todo-tools">
-            <button class="btn ghost" id="markAllDone">今日(範囲)を全部完了</button>
-            <button class="btn ok" id="carryOverNext">未完了を明日に持ち越し</button>
-            <button class="btn ghost" id="collectOverdue">期限切れ(過去)を今日へ集約</button>
-          </div>
         </div>
 
         <div style="margin-top:10px;overflow:auto">
@@ -202,7 +182,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
 <script>
-  // ===== 画面上に致命的エラー表示（白紙対策） =====
   function showFatal(err){
     console.error(err);
     const box = document.getElementById("fatal");
@@ -213,22 +192,15 @@
   window.addEventListener("error", (e)=>showFatal(e.error || e.message));
   window.addEventListener("unhandledrejection", (e)=>showFatal(e.reason || e));
 
-  // ===== Supabase =====
   const SUPABASE_URL = "https://vxtrnewebvqdgnknktdt.supabase.co";
   const SUPABASE_ANON =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dHJuZXdlYnZxZGdua25rdGR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyNDM0MDIsImV4cCI6MjA4MTgxOTQwMn0.1MtxmKyLVSp_LfyfE3jXn8TBKRf0G6WdMFLxUrM_TsM";
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
-  // ===== state =====
-  let view = "day"; // day | week | month
+  let view = "day";
   let rateChart = null;
-  let monthCursor = new Date(); // 表示中の月
+  let monthCursor = new Date();
 
-  // now線 表示ON/OFF
-  const NOW_KEY = "showNowLine";
-  let showNowLine = (localStorage.getItem(NOW_KEY) ?? "1") === "1";
-
-  // ===== dom =====
   const tabs = [...document.querySelectorAll(".tab")];
   const scheduleTitle = document.getElementById("scheduleTitle");
   const todoTitle = document.getElementById("todoTitle");
@@ -247,89 +219,31 @@
   const todoBody = document.getElementById("todoBody");
 
   const refreshAllBtn = document.getElementById("refreshAll");
-  const toggleNowLineBtn = document.getElementById("toggleNowLine");
-  const markAllDoneBtn = document.getElementById("markAllDone");
-  const carryOverNextBtn = document.getElementById("carryOverNext");
-  const collectOverdueBtn = document.getElementById("collectOverdue");
 
-  // ===== utils =====
   const pad = (n) => String(n).padStart(2,"0");
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const todayStr = () => ymd(new Date());
 
-  // Safari/スマホでもズレない：YYYY-MM-DD をローカルDateに変換
-  function dateFromYmd(s){ // "YYYY-MM-DD" -> Date(ローカル)
+  function dateFromYmd(s){
     const [y,m,d] = String(s).split("-").map(Number);
     return new Date(y, m-1, d);
   }
-
   function addDays(date, n){
     const d = new Date(date);
     d.setDate(d.getDate() + n);
     return d;
   }
-
-  function startOfWeek(date) { // Monday start
-    const d = new Date(date);
-    const day = (d.getDay() + 6) % 7; // Mon=0..Sun=6
-    d.setDate(d.getDate() - day);
-    d.setHours(0,0,0,0);
-    return d;
+  function startOfMonth(date){
+    const d = new Date(date); d.setDate(1); d.setHours(0,0,0,0); return d;
   }
-  function endOfWeek(date) {
-    const s = startOfWeek(date);
-    const e = new Date(s);
-    e.setDate(e.getDate() + 6);
-    e.setHours(23,59,59,999);
-    return e;
-  }
-  function startOfMonth(date) {
-    const d = new Date(date);
-    d.setDate(1); d.setHours(0,0,0,0);
-    return d;
-  }
-  function endOfMonth(date) {
-    const d = new Date(date);
-    d.setMonth(d.getMonth()+1, 0);
-    d.setHours(23,59,59,999);
-    return d;
+  function endOfMonth(date){
+    const d = new Date(date); d.setMonth(d.getMonth()+1, 0); d.setHours(23,59,59,999); return d;
   }
 
-  // ★ 日ビューの「選択日」を schDate/todoDate で必ず一致させる
   function syncSelectedDate(v){
     const val = v || todayStr();
     schDate.value = val;
     todoDate.value = val;
-  }
-
-  function currentRange() {
-    if (view === "day") {
-      const key = (schDate.value || todayStr()); // 日ビュー基準はschDateに統一
-      const base = dateFromYmd(key);
-      const a = new Date(base); a.setHours(0,0,0,0);
-      const b = new Date(base); b.setHours(23,59,59,999);
-      const label = (!schDate.value || key === todayStr())
-        ? "今日"
-        : `${a.getFullYear()}/${pad(a.getMonth()+1)}/${pad(a.getDate())}`;
-      return { a, b, label };
-    }
-    if (view === "week") {
-      const now = new Date();
-      const a = startOfWeek(now);
-      const b = endOfWeek(now);
-      const label = `${a.getFullYear()}/${pad(a.getMonth()+1)}/${pad(a.getDate())} - ${b.getFullYear()}/${pad(b.getMonth()+1)}/${pad(b.getDate())}`;
-      return { a, b, label: `今週（${label}）` };
-    }
-    const a = startOfMonth(monthCursor);
-    const b = endOfMonth(monthCursor);
-    return { a, b, label: `今月（${a.getFullYear()}/${pad(a.getMonth()+1)}）` };
-  }
-
-  function setTitles() {
-    const jp = view === "day" ? "日" : view === "week" ? "週" : "月";
-    scheduleTitle.textContent = `スケジュール（${jp}）`;
-    todoTitle.textContent = `ToDo（${jp}）`;
-    rangeLabel.textContent = currentRange().label;
   }
 
   function escapeHtml(s){
@@ -341,355 +255,86 @@
       .replaceAll("'","&#039;");
   }
 
-  function setStatus(msg, type="") {
+  function setStatus(msg, type=""){
     const cls = type === "ok" ? "okText" : type === "err" ? "errText" : type === "warn" ? "warnText" : "";
     statusLine.className = `mini ${cls}`;
     statusLine.textContent = msg || "";
   }
 
-  function parseHHMM(t){
-    if(!t) return null;
-    const s = String(t).slice(0,5);
-    const [h,m]=s.split(":").map(Number);
-    if(Number.isNaN(h)||Number.isNaN(m)) return null;
-    return h*60+m;
+  function currentRange(){
+    if(view === "day"){
+      const key = (schDate.value || todayStr());
+      const base = dateFromYmd(key);
+      const a = new Date(base); a.setHours(0,0,0,0);
+      const b = new Date(base); b.setHours(23,59,59,999);
+      const label = (key === todayStr()) ? "今日" : `${a.getFullYear()}/${pad(a.getMonth()+1)}/${pad(a.getDate())}`;
+      return { a, b, label };
+    }
+    if(view === "month"){
+      const a = startOfMonth(monthCursor);
+      const b = endOfMonth(monthCursor);
+      return { a, b, label: `今月（${a.getFullYear()}/${pad(a.getMonth()+1)}）` };
+    }
+    // 週は簡易：今週ではなく、今日〜6日後（必要なら週表示を戻せる）
+    const a = dateFromYmd(todayStr());
+    const b = addDays(a, 6); b.setHours(23,59,59,999);
+    return { a, b, label: "今週（簡易）" };
   }
 
-  // ===== Supabase queries =====
-  async function insertSchedule(date, time, text) {
+  function setTitles(){
+    const jp = view === "day" ? "日" : view === "week" ? "週" : "月";
+    scheduleTitle.textContent = `スケジュール（${jp}）`;
+    todoTitle.textContent = `ToDo（${jp}）`;
+    rangeLabel.textContent = currentRange().label;
+  }
+
+  async function insertSchedule(date, time, text){
     const { error } = await sb.from("schedules").insert({ date, time: time || null, text });
-    if (error) throw error;
+    if(error) throw error;
   }
-  async function deleteSchedule(id) {
+  async function deleteSchedule(id){
     const { error } = await sb.from("schedules").delete().eq("id", id);
-    if (error) throw error;
+    if(error) throw error;
   }
-  async function fetchSchedules(fromYmd, toYmd) {
+  async function fetchSchedules(fromYmd, toYmd){
     const { data, error } = await sb
       .from("schedules")
       .select("id, date, time, text")
       .gte("date", fromYmd)
       .lte("date", toYmd)
-      .order("date", { ascending: true })
-      .order("time", { ascending: true });
-    if (error) throw error;
+      .order("date", { ascending:true })
+      .order("time", { ascending:true });
+    if(error) throw error;
     return data ?? [];
   }
 
-  async function insertTodo(text, planned_date) {
-    const { error } = await sb.from("todos").insert({
-      text, planned_date, done:false, completed_at:null
-    });
-    if (error) throw error;
+  async function insertTodo(text, planned_date){
+    const { error } = await sb.from("todos").insert({ text, planned_date, done:false, completed_at:null });
+    if(error) throw error;
   }
-  async function deleteTodo(id) {
+  async function deleteTodo(id){
     const { error } = await sb.from("todos").delete().eq("id", id);
-    if (error) throw error;
+    if(error) throw error;
   }
-  async function toggleTodo(id, done) {
-    const payload = done
-      ? { done: true, completed_at: new Date().toISOString() }
-      : { done: false, completed_at: null };
+  async function toggleTodo(id, done){
+    const payload = done ? { done:true, completed_at:new Date().toISOString() } : { done:false, completed_at:null };
     const { error } = await sb.from("todos").update(payload).eq("id", id);
-    if (error) throw error;
+    if(error) throw error;
   }
-  async function fetchTodos(fromYmd, toYmd) {
+  async function fetchTodos(fromYmd, toYmd){
     const { data, error } = await sb
       .from("todos")
       .select("id, text, planned_date, done, created_at")
       .gte("planned_date", fromYmd)
       .lte("planned_date", toYmd)
-      .order("done", { ascending: true })
-      .order("planned_date", { ascending: true })
-      .order("created_at", { ascending: true });
-    if (error) throw error;
+      .order("done", { ascending:true })
+      .order("planned_date", { ascending:true })
+      .order("created_at", { ascending:true });
+    if(error) throw error;
     return data ?? [];
   }
-  async function markAllDoneInRange(fromYmd, toYmd) {
-    const { error } = await sb
-      .from("todos")
-      .update({ done: true, completed_at: new Date().toISOString() })
-      .eq("done", false)
-      .gte("planned_date", fromYmd)
-      .lte("planned_date", toYmd);
-    if (error) throw error;
-  }
 
-  async function carryOverUndoneToNextDay(fromYmd, toYmd){
-    const rows = await fetchTodos(fromYmd, toYmd);
-    const undone = rows.filter(r => !r.done);
-    if(!undone.length) return 0;
-
-    const base = dateFromYmd(toYmd); // ★安全
-    const next = addDays(base, 1);
-    const nextYmd = ymd(next);
-
-    const ids = undone.map(x => x.id);
-    const { error } = await sb.from("todos").update({ planned_date: nextYmd }).in("id", ids);
-    if(error) throw error;
-    return undone.length;
-  }
-
-  async function collectOverdueToToday(){
-    const today = todayStr();
-    const { data, error } = await sb
-      .from("todos")
-      .select("id, planned_date, done")
-      .lt("planned_date", today)
-      .eq("done", false);
-    if(error) throw error;
-
-    const ids = (data ?? []).map(x => x.id);
-    if(!ids.length) return 0;
-
-    const { error: e2 } = await sb.from("todos").update({ planned_date: today }).in("id", ids);
-    if(e2) throw e2;
-    return ids.length;
-  }
-
-  // ===== スケジュール描画（3ビュー） =====
-  function renderScheduleDayTimeline(rows){
-    scheduleView.innerHTML = "";
-
-    const dayKey = schDate.value || todayStr();
-    const dayRows = rows.filter(r => r.date === dayKey);
-
-    const withTime = dayRows.filter(r => !!r.time).slice();
-    const noTime = dayRows.filter(r => !r.time).slice();
-    withTime.sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
-
-    const container = document.createElement("div");
-    container.className = "timeline";
-    if(!showNowLine) container.classList.add("hide-now");
-
-    const startMin = 6*60;
-    const endMin = 24*60;
-    const totalMin = endMin - startMin;
-    const pxPerMin = (44*18) / totalMin;
-
-    for(let h=6; h<=24; h++){
-      const hour = document.createElement("div");
-      hour.className = "tline-hour";
-      const lab = document.createElement("div");
-      lab.className = "lab";
-      lab.textContent = String(h).padStart(2,"0")+":00";
-      hour.appendChild(lab);
-      container.appendChild(hour);
-    }
-
-    const isTodayView = (dayKey === todayStr());
-    if(isTodayView){
-      const now = new Date();
-      const nowMin = now.getHours()*60 + now.getMinutes();
-      if(nowMin >= startMin && nowMin <= endMin){
-        const nowLine = document.createElement("div");
-        nowLine.className = "tline-now";
-        nowLine.style.top = `${(nowMin - startMin) * pxPerMin}px`;
-        container.appendChild(nowLine);
-      }
-    }
-
-    const BLOCK_MIN = 30;
-    const items = withTime
-      .map(r=>{
-        const m = parseHHMM(r.time);
-        return { ...r, startMin: m, endMin: m===null ? null : Math.min(endMin, m + BLOCK_MIN) };
-      })
-      .filter(x=>x.startMin!==null && x.startMin>=startMin && x.startMin<=endMin);
-
-    const groups = [];
-    for(const it of items){
-      let placed = false;
-      for(const g of groups){
-        const overlaps = g.some(x => !(it.endMin <= x.startMin || it.startMin >= x.endMin));
-        if(overlaps){ g.push(it); placed = true; break; }
-      }
-      if(!placed) groups.push([it]);
-    }
-
-    for(const g of groups){
-      g.sort((a,b)=>a.startMin-b.startMin);
-      const lanesEnd = [];
-      for(const it of g){
-        let lane = -1;
-        for(let i=0;i<lanesEnd.length;i++){
-          if(it.startMin >= lanesEnd[i]){ lane = i; break; }
-        }
-        if(lane === -1){
-          lane = lanesEnd.length;
-          lanesEnd.push(it.endMin);
-        }else{
-          lanesEnd[lane] = it.endMin;
-        }
-        it._lane = lane;
-        it._laneCount = null;
-      }
-      const laneCount = lanesEnd.length;
-      for(const it of g) it._laneCount = laneCount;
-    }
-
-    for(const r of items){
-      const y = (r.startMin - startMin) * pxPerMin;
-      const item = document.createElement("div");
-      item.className = "tline-item";
-      item.style.top = `${Math.max(0, y)}px`;
-
-      const lanes = r._laneCount || 1;
-      const lane = r._lane || 0;
-
-      const gap = 8;
-      const full = 100;
-      const w = (full - gap*(lanes-1)) / lanes;
-      const left = lane * (w + gap);
-
-      item.style.left = `calc(10px + ${left}%)`;
-      item.style.width = `calc(${w}% )`;
-
-      item.innerHTML = `
-        <div class="sv-card">
-          <div class="sv-title">${escapeHtml(String(r.time).slice(0,5))}　${escapeHtml(r.text || "")}</div>
-          <div class="sv-sub">
-            <span>${escapeHtml(r.date)}</span>
-            <span class="spacer"></span>
-            <span class="sv-actions">
-              <button class="btn danger" data-del-sch="${r.id}">削除</button>
-            </span>
-          </div>
-        </div>
-      `;
-      container.appendChild(item);
-    }
-
-    scheduleView.appendChild(container);
-
-    if(noTime.length){
-      const box = document.createElement("div");
-      box.style.marginTop = "12px";
-      box.innerHTML = `<div class="sv-card"><div class="sv-title">時間なしメモ</div></div>`;
-      const inner = box.querySelector(".sv-card");
-      for(const r of noTime){
-        const line = document.createElement("div");
-        line.className = "mini";
-        line.style.marginTop = "6px";
-        line.textContent = `・${r.text}`;
-
-        const del = document.createElement("button");
-        del.className = "btn danger";
-        del.style.marginLeft = "10px";
-        del.style.padding = "6px 10px";
-        del.textContent = "削除";
-        del.addEventListener("click", async ()=>{
-          try{
-            await deleteSchedule(r.id);
-            await renderAll();
-            setStatus("削除しました", "ok");
-          }catch(e){
-            setStatus(`削除失敗：${e.message}`, "err");
-          }
-        });
-
-        line.appendChild(del);
-        inner.appendChild(line);
-      }
-      scheduleView.appendChild(box);
-    }
-
-    if(!dayRows.length){
-      const empty = document.createElement("div");
-      empty.className = "sv-card";
-      empty.style.marginTop = "10px";
-      empty.innerHTML = `<div class="mini">（この日のスケジュールはまだありません）</div>`;
-      scheduleView.appendChild(empty);
-    }
-
-    scheduleView.querySelectorAll("[data-del-sch]").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        try{
-          await deleteSchedule(btn.getAttribute("data-del-sch"));
-          await renderAll();
-          setStatus("削除しました", "ok");
-        }catch(e){
-          setStatus(`削除失敗：${e.message}`, "err");
-        }
-      });
-    });
-  }
-
-  function renderScheduleWeekGrid(rows){
-    scheduleView.innerHTML = "";
-
-    const start = startOfWeek(new Date());
-    const days = [...Array(7)].map((_,i)=> addDays(start,i));
-    const dayKeys = days.map(d=>ymd(d));
-
-    const map = new Map();
-    for(const r of rows){
-      if(!map.has(r.date)) map.set(r.date, []);
-      map.get(r.date).push(r);
-    }
-    for(const [k, arr] of map){
-      arr.sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
-    }
-
-    const hours = [];
-    for(let h=6; h<=24; h++) hours.push(h);
-
-    const names = ["月","火","水","木","金","土","日"];
-    const grid = document.createElement("div");
-    grid.className = "weekgrid";
-
-    grid.appendChild(Object.assign(document.createElement("div"), { className:"wg-head", textContent:"" }));
-    for(let i=0;i<7;i++){
-      const d = days[i];
-      const head = document.createElement("div");
-      head.className = "wg-head";
-      head.textContent = `${names[i]} ${d.getMonth()+1}/${d.getDate()}`;
-      grid.appendChild(head);
-    }
-
-    for(const h of hours){
-      const tcell = document.createElement("div");
-      tcell.className = "wg-time";
-      tcell.textContent = `${String(h).padStart(2,"0")}:00`;
-      grid.appendChild(tcell);
-
-      for(let i=0;i<7;i++){
-        const k = dayKeys[i];
-        const cell = document.createElement("div");
-        cell.className = "wg-cell";
-
-        const list = (map.get(k)||[]).filter(r=>{
-          if(!r.time) return false;
-          const m = parseHHMM(r.time);
-          return m!==null && m>=h*60 && m<((h+1)*60);
-        });
-
-        for(const r of list.slice(0,5)){
-          const b = document.createElement("span");
-          b.className = "wg-badge";
-          b.title = `${String(r.time).slice(0,5)} ${r.text}`;
-          b.textContent = `${String(r.time).slice(0,5)} ${r.text}`;
-          cell.appendChild(b);
-        }
-        if(list.length>5){
-          const more = document.createElement("div");
-          more.className = "mini";
-          more.textContent = `+${list.length-5}件`;
-          cell.appendChild(more);
-        }
-        grid.appendChild(cell);
-      }
-    }
-
-    scheduleView.appendChild(grid);
-
-    const note = document.createElement("div");
-    note.className = "mini";
-    note.style.marginTop = "10px";
-    note.textContent = "※ 週は 6:00〜24:00 を1時間刻みで表示";
-    scheduleView.appendChild(note);
-  }
-
+  // ===== 月：カレンダー + 一覧（削除ボタン） =====
   function renderScheduleMonthCalendar(schedules, todos){
     scheduleView.innerHTML = "";
 
@@ -712,8 +357,48 @@
     `;
     scheduleView.appendChild(header);
 
+    // ---- 月のスケジュール一覧（ここで削除できる）----
+    const listBox = document.createElement("div");
+    listBox.className = "monthList";
+    const sortedSch = schedules.slice().sort((x,y)=>{
+      const a = (x.date||"").localeCompare(y.date||"");
+      if(a!==0) return a;
+      return (x.time||"99:99").localeCompare(y.time||"99:99");
+    });
+
+    listBox.innerHTML = `
+      <div class="sv-card">
+        <div class="sv-title">この月のスケジュール一覧（削除OK）</div>
+        <div class="mini" style="margin-top:4px">※ 削除するとカレンダーの点もすぐ減ります</div>
+      </div>
+    `;
+    if(!sortedSch.length){
+      const empty = document.createElement("div");
+      empty.className = "mini";
+      empty.style.marginTop = "8px";
+      empty.textContent = "（この月のスケジュールはまだありません）";
+      listBox.appendChild(empty);
+    }else{
+      for(const r of sortedSch){
+        const row = document.createElement("div");
+        row.className = "monthRow";
+        row.innerHTML = `
+          <div class="left">
+            <div class="title">${escapeHtml(r.date)} ${escapeHtml(r.time ? String(r.time).slice(0,5) : "")}　${escapeHtml(r.text||"")}</div>
+            <div class="sub">id: ${escapeHtml(r.id)}</div>
+          </div>
+          <div class="right">
+            <button class="btn danger" data-del-sch="${r.id}">削除</button>
+          </div>
+        `;
+        listBox.appendChild(row);
+      }
+    }
+    scheduleView.appendChild(listBox);
+
+    // ---- カレンダー ----
     const first = new Date(y, m, 1);
-    const startDow = first.getDay();
+    const startDow = first.getDay(); // 0=Sun
     const start = new Date(y, m, 1 - startDow);
 
     const schMap = new Map();
@@ -768,7 +453,7 @@
       }
 
       cell.addEventListener("click", ()=>{
-        syncSelectedDate(k); // ★両方同時に日付セット
+        syncSelectedDate(k);
         setView("day");
       });
 
@@ -785,20 +470,87 @@
       monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth()+1, 1);
       await renderAll();
     });
+
+    // 月一覧の削除ボタン
+    scheduleView.querySelectorAll("[data-del-sch]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-del-sch");
+        if(!confirm("このスケジュールを削除する？")) return;
+        try{
+          await deleteSchedule(id);
+          await renderAll(); // ★これで月ドットも即更新
+          setStatus("スケジュールを削除しました（カレンダーも更新）", "ok");
+        }catch(e){
+          setStatus(`削除失敗：${e.message}`, "err");
+        }
+      });
+    });
   }
 
-  async function renderSchedules() {
+  // ===== 日：簡易リスト（削除OK） =====
+  function renderScheduleDayList(rows){
+    scheduleView.innerHTML = "";
+    const dayKey = schDate.value || todayStr();
+    const dayRows = rows.filter(r => r.date === dayKey)
+      .sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
+
+    const head = document.createElement("div");
+    head.className = "sv-card";
+    head.innerHTML = `<div class="sv-title">${escapeHtml(dayKey)} のスケジュール</div>`;
+    scheduleView.appendChild(head);
+
+    if(!dayRows.length){
+      const empty = document.createElement("div");
+      empty.className = "sv-card";
+      empty.style.marginTop = "10px";
+      empty.innerHTML = `<div class="mini">（この日のスケジュールはまだありません）</div>`;
+      scheduleView.appendChild(empty);
+      return;
+    }
+
+    for(const r of dayRows){
+      const c = document.createElement("div");
+      c.className = "sv-card";
+      c.style.marginTop = "10px";
+      c.innerHTML = `
+        <div class="sv-title">${escapeHtml(r.time ? String(r.time).slice(0,5) : "（時間なし）")}　${escapeHtml(r.text||"")}</div>
+        <div class="sv-sub">
+          <span>${escapeHtml(r.date)}</span>
+          <span class="spacer"></span>
+          <span class="sv-actions">
+            <button class="btn danger" data-del-sch="${r.id}">削除</button>
+          </span>
+        </div>
+      `;
+      scheduleView.appendChild(c);
+    }
+
+    scheduleView.querySelectorAll("[data-del-sch]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-del-sch");
+        if(!confirm("このスケジュールを削除する？")) return;
+        try{
+          await deleteSchedule(id);
+          await renderAll();
+          setStatus("削除しました", "ok");
+        }catch(e){
+          setStatus(`削除失敗：${e.message}`, "err");
+        }
+      });
+    });
+  }
+
+  async function renderSchedules(){
     const { a, b } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
     const rows = await fetchSchedules(fromYmd, toYmd);
 
-    if(view === "day") renderScheduleDayTimeline(rows);
-    else if(view === "week") renderScheduleWeekGrid(rows);
-    else renderScheduleMonthCalendar(rows, []);
+    if(view === "day") renderScheduleDayList(rows);
+    else if(view === "month") renderScheduleMonthCalendar(rows, []);
+    else renderScheduleDayList(rows);
   }
 
-  // ===== ToDo render =====
-  async function renderTodos() {
+  async function renderTodos(){
     const { a, b } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
     const rows = await fetchTodos(fromYmd, toYmd);
@@ -832,8 +584,10 @@
 
     todoBody.querySelectorAll("[data-del-todo]").forEach(btn=>{
       btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-del-todo");
+        if(!confirm("このToDoを削除する？")) return;
         try{
-          await deleteTodo(btn.getAttribute("data-del-todo"));
+          await deleteTodo(id);
           await renderAll();
           setStatus("ToDoを削除しました", "ok");
         }catch(e){
@@ -843,7 +597,7 @@
     });
   }
 
-  async function renderRateChartForView() {
+  async function renderRateChartForView(){
     const { a, b, label } = currentRange();
     const fromYmd = ymd(a), toYmd = ymd(b);
 
@@ -852,17 +606,17 @@
     const done = todos.filter(t => t.done).length;
     const rate = total ? Math.round(done / total * 100) : 0;
 
-    if (rateChart) rateChart.destroy();
+    if(rateChart) rateChart.destroy();
     rateChart = new Chart(document.getElementById("rateChart"), {
       type: "bar",
-      data: { labels: [label], datasets: [{ label: "達成率(%)", data: [rate] }] },
-      options: { scales: { y: { beginAtZero: true, max: 100 } } }
+      data: { labels: [label], datasets: [{ label:"達成率(%)", data:[rate] }] },
+      options: { scales: { y: { beginAtZero:true, max:100 } } }
     });
   }
 
-  async function renderAll() {
+  async function renderAll(){
     setTitles();
-    setStatus("同期中…", "warn");
+    setStatus("同期中…","warn");
     try{
       const { a, b } = currentRange();
       const fromYmd = ymd(a), toYmd = ymd(b);
@@ -879,9 +633,9 @@
 
       await renderTodos();
       await renderRateChartForView();
-      setStatus("同期OK", "ok");
+      setStatus("同期OK","ok");
     }catch(e){
-      setStatus(`エラー：${e.message}`, "err");
+      setStatus(`エラー：${e.message}`,"err");
       console.error(e);
     }
   }
@@ -892,10 +646,9 @@
     renderAll();
   }
 
-  // ===== init =====
+  // init
   syncSelectedDate(todayStr());
 
-  // ★ 日ビューではどっちのdateを触っても両方揃える
   schDate.addEventListener("change", ()=>{
     if(view === "day") syncSelectedDate(schDate.value || todayStr());
     if(view === "day") renderAll();
@@ -905,21 +658,9 @@
     if(view === "day") renderAll();
   });
 
-  // Now線ボタン
-  function syncNowBtn(){
-    toggleNowLineBtn.textContent = `Now線: ${showNowLine ? "ON" : "OFF"}`;
-  }
-  syncNowBtn();
-  toggleNowLineBtn.addEventListener("click", ()=>{
-    showNowLine = !showNowLine;
-    localStorage.setItem(NOW_KEY, showNowLine ? "1" : "0");
-    syncNowBtn();
-    if(view === "day") renderAll();
-  });
-
   tabs.forEach(t=>{
     t.addEventListener("click", ()=>{
-      if(t.dataset.view==="month") monthCursor = new Date();
+      if(t.dataset.view==="month") monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1);
       setView(t.dataset.view);
     });
   });
@@ -929,72 +670,31 @@
     const time = schTime.value || "";
     const text = (schText.value || "").trim();
     if(!text) return alert("内容を入れてね");
-
     try{
       await insertSchedule(date, time, text);
       schText.value = "";
       await renderAll();
-      setStatus("スケジュールを追加しました", "ok");
+      setStatus("スケジュールを追加しました","ok");
     }catch(e){
-      setStatus(`追加失敗：${e.message}`, "err");
+      setStatus(`追加失敗：${e.message}`,"err");
     }
   });
 
   addTodoBtn.addEventListener("click", async ()=>{
     const text = (todoText.value || "").trim();
-    const planned = (todoDate.value || schDate.value || todayStr()); // ★保険（選択日と一致）
+    const planned = (todoDate.value || schDate.value || todayStr());
     if(!text) return alert("ToDoを入れてね");
-
     try{
       await insertTodo(text, planned);
       todoText.value = "";
       await renderAll();
-      setStatus("ToDoを追加しました", "ok");
+      setStatus("ToDoを追加しました","ok");
     }catch(e){
-      setStatus(`追加失敗：${e.message}`, "err");
+      setStatus(`追加失敗：${e.message}`,"err");
     }
   });
 
-  document.getElementById("refreshAll").addEventListener("click", async ()=>{ await renderAll(); });
-
-  markAllDoneBtn.addEventListener("click", async ()=>{
-    const { a, b } = currentRange();
-    const fromYmd = ymd(a), toYmd = ymd(b);
-    if(!confirm("この範囲のToDoを全部完了にする？")) return;
-
-    try{
-      await markAllDoneInRange(fromYmd, toYmd);
-      await renderAll();
-      setStatus("範囲内ToDoを全部完了にしました", "ok");
-    }catch(e){
-      setStatus(`一括完了失敗：${e.message}`, "err");
-    }
-  });
-
-  carryOverNextBtn.addEventListener("click", async ()=>{
-    const { a, b } = currentRange();
-    const fromYmd = ymd(a), toYmd = ymd(b);
-    if(!confirm("この範囲の『未完了』を翌日に持ち越す？")) return;
-
-    try{
-      const n = await carryOverUndoneToNextDay(fromYmd, toYmd);
-      await renderAll();
-      setStatus(n ? `未完了 ${n}件 を翌日に持ち越しました` : "未完了はありません", "ok");
-    }catch(e){
-      setStatus(`持ち越し失敗：${e.message}`, "err");
-    }
-  });
-
-  collectOverdueBtn.addEventListener("click", async ()=>{
-    if(!confirm("過去日の未完了ToDoを『今日』に集約する？")) return;
-    try{
-      const n = await collectOverdueToToday();
-      await renderAll();
-      setStatus(n ? `期限切れ ${n}件 を今日へ集約しました` : "期限切れ未完了はありません", "ok");
-    }catch(e){
-      setStatus(`集約失敗：${e.message}`, "err");
-    }
-  });
+  refreshAllBtn.addEventListener("click", async ()=>{ await renderAll(); });
 
   renderAll();
 </script>
