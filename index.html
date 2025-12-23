@@ -257,6 +257,12 @@
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const todayStr = () => ymd(new Date());
 
+  // Safari/スマホでもズレない：YYYY-MM-DD をローカルDateに変換
+  function dateFromYmd(s){ // "YYYY-MM-DD" -> Date(ローカル)
+    const [y,m,d] = String(s).split("-").map(Number);
+    return new Date(y, m-1, d);
+  }
+
   function addDays(date, n){
     const d = new Date(date);
     d.setDate(d.getDate() + n);
@@ -289,12 +295,20 @@
     return d;
   }
 
+  // ★ 日ビューの「選択日」を schDate/todoDate で必ず一致させる
+  function syncSelectedDate(v){
+    const val = v || todayStr();
+    schDate.value = val;
+    todoDate.value = val;
+  }
+
   function currentRange() {
     if (view === "day") {
-      const base = new Date((schDate.value || todayStr()) + "T00:00:00");
+      const key = (schDate.value || todayStr()); // 日ビュー基準はschDateに統一
+      const base = dateFromYmd(key);
       const a = new Date(base); a.setHours(0,0,0,0);
       const b = new Date(base); b.setHours(23,59,59,999);
-      const label = (!schDate.value || schDate.value === todayStr())
+      const label = (!schDate.value || key === todayStr())
         ? "今日"
         : `${a.getFullYear()}/${pad(a.getMonth()+1)}/${pad(a.getDate())}`;
       return { a, b, label };
@@ -406,7 +420,7 @@
     const undone = rows.filter(r => !r.done);
     if(!undone.length) return 0;
 
-    const base = new Date(toYmd + "T00:00:00");
+    const base = dateFromYmd(toYmd); // ★安全
     const next = addDays(base, 1);
     const nextYmd = ymd(next);
 
@@ -453,7 +467,6 @@
     const totalMin = endMin - startMin;
     const pxPerMin = (44*18) / totalMin;
 
-    // 目盛
     for(let h=6; h<=24; h++){
       const hour = document.createElement("div");
       hour.className = "tline-hour";
@@ -464,7 +477,6 @@
       container.appendChild(hour);
     }
 
-    // Nowライン：今日のときだけ
     const isTodayView = (dayKey === todayStr());
     if(isTodayView){
       const now = new Date();
@@ -477,8 +489,7 @@
       }
     }
 
-    // ===== 被り解消：レーン分け =====
-    const BLOCK_MIN = 30; // 被り判定用（30分枠）
+    const BLOCK_MIN = 30;
     const items = withTime
       .map(r=>{
         const m = parseHHMM(r.time);
@@ -486,7 +497,6 @@
       })
       .filter(x=>x.startMin!==null && x.startMin>=startMin && x.startMin<=endMin);
 
-    // 重なりグループ
     const groups = [];
     for(const it of items){
       let placed = false;
@@ -497,7 +507,6 @@
       if(!placed) groups.push([it]);
     }
 
-    // レーン割り当て（貪欲）
     for(const g of groups){
       g.sort((a,b)=>a.startMin-b.startMin);
       const lanesEnd = [];
@@ -519,7 +528,6 @@
       for(const it of g) it._laneCount = laneCount;
     }
 
-    // 描画
     for(const r of items){
       const y = (r.startMin - startMin) * pxPerMin;
       const item = document.createElement("div");
@@ -529,7 +537,7 @@
       const lanes = r._laneCount || 1;
       const lane = r._lane || 0;
 
-      const gap = 8; // %
+      const gap = 8;
       const full = 100;
       const w = (full - gap*(lanes-1)) / lanes;
       const left = lane * (w + gap);
@@ -554,7 +562,6 @@
 
     scheduleView.appendChild(container);
 
-    // 時間なしメモ
     if(noTime.length){
       const box = document.createElement("div");
       box.style.marginTop = "12px";
@@ -595,7 +602,6 @@
       scheduleView.appendChild(empty);
     }
 
-    // 削除
     scheduleView.querySelectorAll("[data-del-sch]").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         try{
@@ -625,7 +631,6 @@
       arr.sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
     }
 
-    // 6〜24 を1時間刻み
     const hours = [];
     for(let h=6; h<=24; h++) hours.push(h);
 
@@ -708,7 +713,7 @@
     scheduleView.appendChild(header);
 
     const first = new Date(y, m, 1);
-    const startDow = first.getDay(); // 0=Sun
+    const startDow = first.getDay();
     const start = new Date(y, m, 1 - startDow);
 
     const schMap = new Map();
@@ -739,14 +744,11 @@
       cell.innerHTML = `<div class="num">${d.getDate()}</div><div class="dots"></div>`;
       const dots = cell.querySelector(".dots");
 
-      // schedule dots
       for(let j=0;j<Math.min(schList.length, 6);j++){
         const dot = document.createElement("span");
         dot.className = "dot";
         dots.appendChild(dot);
       }
-
-      // todo dots
       for(let j=0;j<Math.min(tdList.length, 6);j++){
         const dot = document.createElement("span");
         dot.className = "dot todo";
@@ -766,8 +768,7 @@
       }
 
       cell.addEventListener("click", ()=>{
-        schDate.value = k;
-        todoDate.value = k;
+        syncSelectedDate(k); // ★両方同時に日付セット
         setView("day");
       });
 
@@ -892,11 +893,15 @@
   }
 
   // ===== init =====
-  schDate.value = todayStr();
-  todoDate.value = todayStr();
+  syncSelectedDate(todayStr());
 
-  // 日付変更で即更新
+  // ★ 日ビューではどっちのdateを触っても両方揃える
   schDate.addEventListener("change", ()=>{
+    if(view === "day") syncSelectedDate(schDate.value || todayStr());
+    if(view === "day") renderAll();
+  });
+  todoDate.addEventListener("change", ()=>{
+    if(view === "day") syncSelectedDate(todoDate.value || todayStr());
     if(view === "day") renderAll();
   });
 
@@ -937,7 +942,7 @@
 
   addTodoBtn.addEventListener("click", async ()=>{
     const text = (todoText.value || "").trim();
-    const planned = todoDate.value || todayStr();
+    const planned = (todoDate.value || schDate.value || todayStr()); // ★保険（選択日と一致）
     if(!text) return alert("ToDoを入れてね");
 
     try{
@@ -950,7 +955,7 @@
     }
   });
 
-  refreshAllBtn.addEventListener("click", async ()=>{ await renderAll(); });
+  document.getElementById("refreshAll").addEventListener("click", async ()=>{ await renderAll(); });
 
   markAllDoneBtn.addEventListener("click", async ()=>{
     const { a, b } = currentRange();
